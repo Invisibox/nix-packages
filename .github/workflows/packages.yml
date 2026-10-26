@@ -28,6 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - uses: cachix/install-nix-action@31.11.3
@@ -46,9 +47,27 @@ jobs:
           nix fmt -- --check .
           for script in scripts/*.sh; do bash -n "$script"; done
           ./scripts/test-update-neiro.sh
+          ./scripts/test-select-builds.sh
 
-      - name: Build all six packages
-        run: nix flake check --print-build-logs
+      - name: Select changed outputs
+        id: select
+        run: |
+          ./scripts/select-builds.sh > "$RUNNER_TEMP/builds.json"
+          echo "policy=$(jq -r '.policy' "$RUNNER_TEMP/builds.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate flake and build changed outputs
+        run: |
+          nix flake check --no-build
+          mapfile -t installables < <(jq -r '.installables[]' "$RUNNER_TEMP/builds.json")
+          if (( ${#installables[@]} )); then
+            nix build --no-link --print-build-logs "${installables[@]}"
+          fi
+
+      - name: Check sandbox permissions
+        if: steps.select.outputs.policy == 'true'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          nix run '.#checks.x86_64-linux.jailed-desktop-policy'
 
   build:
     if: github.event_name != 'pull_request'
@@ -57,6 +76,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
 
       - uses: cachix/install-nix-action@31.11.3
         with:
@@ -77,23 +98,36 @@ jobs:
           nix fmt -- --check .
           for script in scripts/*.sh; do bash -n "$script"; done
           ./scripts/test-update-neiro.sh
+          ./scripts/test-select-builds.sh
 
-      - name: Select package outputs for Cachix
-        id: cache-paths
+      - name: Select changed outputs
+        id: select
         run: |
-          paths="$(nix eval --json '.#packages.x86_64-linux' --apply 'builtins.mapAttrs (_: package: package.outPath)' | jq -r 'to_entries | map(.value) | join(" ")')"
-          echo "paths=$paths" >> "$GITHUB_OUTPUT"
+          ./scripts/select-builds.sh > "$RUNNER_TEMP/builds.json"
+          echo "paths=$(jq -r '.paths' "$RUNNER_TEMP/builds.json")" >> "$GITHUB_OUTPUT"
+          echo "policy=$(jq -r '.policy' "$RUNNER_TEMP/builds.json")" >> "$GITHUB_OUTPUT"
 
       - uses: cachix/cachix-action@v17
-        if: vars.CACHIX_CACHE_NAME != ''
+        if: vars.CACHIX_CACHE_NAME != '' && steps.select.outputs.paths != ''
         with:
           name: ${{ vars.CACHIX_CACHE_NAME }}
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
           skipPush: ${{ secrets.CACHIX_AUTH_TOKEN == '' }}
-          pathsToPush: ${{ steps.cache-paths.outputs.paths }}
+          pathsToPush: ${{ steps.select.outputs.paths }}
 
-      - name: Build all six packages
-        run: nix flake check --print-build-logs
+      - name: Evaluate flake and build changed outputs
+        run: |
+          nix flake check --no-build
+          mapfile -t installables < <(jq -r '.installables[]' "$RUNNER_TEMP/builds.json")
+          if (( ${#installables[@]} )); then
+            nix build --no-link --print-build-logs "${installables[@]}"
+          fi
+
+      - name: Check sandbox permissions
+        if: steps.select.outputs.policy == 'true'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          nix run '.#checks.x86_64-linux.jailed-desktop-policy'
 
       - name: Commit validated updates
         if: steps.update.outcome == 'success'

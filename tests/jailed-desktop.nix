@@ -1,0 +1,136 @@
+{
+  pkgs,
+  jail,
+}: let
+  python = pkgs.python3.withPackages (p: [p.dbus-next]);
+  probe = pkgs.writeShellApplication {
+    name = "sandbox-probe";
+    text = ''
+      test "$(cat "$HOME/Documents/readable")" = documents
+      test ! -e "$HOME/.ssh/private"
+      test ! -e "$HOME/Downloads/private"
+      test ! -e "$HOME/Documents/escape/private"
+      if touch "$HOME/Documents/forbidden" 2>/dev/null; then
+        echo "Documents must be read-only" >&2
+        exit 1
+      fi
+      touch "$HOME/persistent"
+      ${pkgs.diffutils}/bin/cmp /usr/bin/xdg-open "$BROWSER"
+      if ${pkgs.gnugrep}/bin/grep -Eq '@/?tmp/\.X11-unix/X42$' /proc/net/unix; then
+        echo "The private X server must not expose an abstract socket" >&2
+        exit 1
+      fi
+      "$BROWSER" 'https://example.org/?a=1&b=2'
+      if "$BROWSER" "file://$HOME/.ssh/private" 2>/dev/null; then
+        echo "File URLs must not leave the sandbox" >&2
+        exit 1
+      fi
+      if ${pkgs.systemd}/bin/busctl --user call \
+        org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop \
+        org.freedesktop.portal.FileChooser OpenFile 'ssa{sv}' "" "" 0 2>/dev/null; then
+        echo "FileChooser must be blocked even when the host service accepts it" >&2
+        exit 1
+      fi
+      test ! -e /run/dbus/system_bus_socket
+      test -s /etc/machine-id
+      ${python}/bin/python ${./desktop-dbus.py} "$1"
+    '';
+  };
+  desktop = pkgs.makeDesktopItem {
+    name = "sandbox-probe";
+    desktopName = "Sandbox probe";
+    exec = "${probe}/bin/sandbox-probe";
+  };
+  application = pkgs.symlinkJoin {
+    name = "sandbox-probe";
+    version = "1";
+    paths = [
+      probe
+      desktop
+      (pkgs.writeShellScriptBin "wechat" ''exec ${probe}/bin/sandbox-probe "$@"'')
+    ];
+    meta.description = "Sandbox permission probe";
+  };
+  wrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
+    inherit jail;
+    pname = "jail-policy-probe";
+    program = "sandbox-probe";
+    package = application;
+  };
+  wechatWrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
+    inherit jail;
+    pname = "jail-policy-wechat-probe";
+    program = "wechat";
+    package = application;
+  };
+  fhsWrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
+    inherit jail;
+    pname = "jail-policy-fhs-probe";
+    program = "sandbox-probe";
+    fhs = true;
+    package = pkgs.buildFHSEnv {
+      pname = "fhs-sandbox-probe";
+      version = "1";
+      executableName = "sandbox-probe";
+      targetPkgs = p: [p.xdg-utils];
+      runScript = "${probe}/bin/sandbox-probe";
+      extraInstallCommands = ''
+        mkdir -p "$out/share/applications"
+        cp ${desktop}/share/applications/sandbox-probe.desktop "$out/share/applications/"
+      '';
+      meta.description = "FHS sandbox permission probe";
+    };
+  };
+in
+  pkgs.writeShellApplication {
+    name = "test-jailed-desktop-policy";
+    runtimeInputs = with pkgs; [coreutils dbus gnugrep systemd weston];
+    text = ''
+      if [[ "''${1-}" != --session ]]; then
+        exec timeout 60 dbus-run-session -- "$0" --session
+      fi
+      test_root=$(mktemp -d)
+      cleanup() {
+        kill "''${weston_pid-}" "''${service_pid-}" 2>/dev/null || true
+        rm -rf "$test_root"
+      }
+      trap cleanup EXIT
+      mkdir -p "$test_root/home/"{Documents,.ssh,Downloads} "$test_root/runtime"
+      chmod 700 "$test_root/runtime"
+      printf documents > "$test_root/home/Documents/readable"
+      touch "$test_root/home/.ssh/private" "$test_root/home/Downloads/private"
+      ln -s ../.ssh "$test_root/home/Documents/escape"
+      export XDG_RUNTIME_DIR="$test_root/runtime" WAYLAND_DISPLAY=wayland-test XDG_SESSION_TYPE=wayland
+      session_bus_path="''${DBUS_SESSION_BUS_ADDRESS#unix:path=}"
+      ln -s "''${session_bus_path%%,*}" "$XDG_RUNTIME_DIR/bus"
+      export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+      weston --no-config --backend=headless --renderer=pixman --shell=kiosk-shell.so \
+        --socket="$WAYLAND_DISPLAY" --idle-time=0 >"$test_root/weston.log" 2>&1 &
+      weston_pid=$!
+      ${python}/bin/python ${./desktop-dbus.py} host >"$test_root/services.log" 2>&1 &
+      service_pid=$!
+      for _ in {1..100}; do
+        if [[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]] &&
+          grep -q READY "$test_root/services.log"; then
+          break
+        fi
+        sleep 0.1
+      done
+      test -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" || { cat "$test_root/weston.log"; exit 1; }
+      grep -q READY "$test_root/services.log" || { cat "$test_root/services.log"; exit 1; }
+      # Prove the mock accepts the forbidden method before testing the proxy.
+      busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop \
+        org.freedesktop.portal.FileChooser OpenFile 'ssa{sv}' "" "" 0
+      for launcher in ${wrapped}/bin/jail-policy-probe ${fhsWrapped}/bin/jail-policy-fhs-probe; do
+        env -u TERM HOME="$test_root/home" LANG=C.UTF-8 "$launcher" settings
+      done
+      env -u TERM HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe tray
+      test -f "$test_root/home/.local/share/jail.nix/home/jail-policy-probe/persistent"
+      test -f "$test_root/home/.local/share/jail.nix/home/jail-policy-fhs-probe/persistent"
+      test ! -e "$test_root/home/persistent"
+      test ! -e "$test_root/home/Documents/forbidden"
+      grep -Fx 'Exec=${wrapped}/bin/jail-policy-probe %U' \
+        ${wrapped}/share/applications/sandbox-probe.desktop
+      echo "Sandbox policy: filesystem, persistence, browser, theme changes and tray callbacks passed"
+    '';
+  }
