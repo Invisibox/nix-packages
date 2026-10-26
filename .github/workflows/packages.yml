@@ -1,0 +1,108 @@
+name: Packages
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      update:
+        description: Update nixpkgs and application versions before building
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pull-request-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: cachix/install-nix-action@31.11.3
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - uses: cachix/cachix-action@v17
+        if: vars.CACHIX_CACHE_NAME != ''
+        with:
+          name: ${{ vars.CACHIX_CACHE_NAME }}
+          skipPush: true
+
+      - name: Check formatting and update scripts
+        run: |
+          nix fmt -- --check .
+          for script in scripts/*.sh; do bash -n "$script"; done
+          ./scripts/test-update-neiro.sh
+
+      - name: Build all six packages
+        run: nix flake check --print-build-logs
+
+  build:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: cachix/install-nix-action@31.11.3
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Update upstream versions
+        id: update
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.update)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          nix flake update nixpkgs
+          ./scripts/update-all.sh
+
+      - name: Check formatting and update scripts
+        run: |
+          nix fmt -- --check .
+          for script in scripts/*.sh; do bash -n "$script"; done
+          ./scripts/test-update-neiro.sh
+
+      - name: Select package outputs for Cachix
+        id: cache-paths
+        run: |
+          paths="$(nix eval --json '.#packages.x86_64-linux' --apply 'builtins.mapAttrs (_: package: package.outPath)' | jq -r 'to_entries | map(.value) | join(" ")')"
+          echo "paths=$paths" >> "$GITHUB_OUTPUT"
+
+      - uses: cachix/cachix-action@v17
+        if: vars.CACHIX_CACHE_NAME != ''
+        with:
+          name: ${{ vars.CACHIX_CACHE_NAME }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          skipPush: ${{ secrets.CACHIX_AUTH_TOKEN == '' }}
+          pathsToPush: ${{ steps.cache-paths.outputs.paths }}
+
+      - name: Build all six packages
+        run: nix flake check --print-build-logs
+
+      - name: Commit validated updates
+        if: steps.update.outcome == 'success'
+        run: |
+          git add flake.lock packages
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: update package versions'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
