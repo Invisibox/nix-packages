@@ -3,7 +3,7 @@
   pkgs,
 }: let
   pname = "paseo-desktop";
-  version = "0.13.1";
+  version = "0.13.2";
 
   deps = with pkgs; [
     alsa-lib
@@ -100,7 +100,7 @@
 
   src = pkgs.fetchurl {
     url = "https://github.com/getpaseo/paseo/releases/download/v${version}/Paseo-x86_64.AppImage";
-    hash = "sha256-FN/tBoh+CW9E5L38wQm2OxBs6Ix66NiD9mJLkupgn6c=";
+    hash = "sha256-JxHPRoVWW3S9lV6qlIxCAsZtIhtaprQ7GsSV2Oywp+0=";
   };
 
   package = pkgs.stdenv.mkDerivation {
