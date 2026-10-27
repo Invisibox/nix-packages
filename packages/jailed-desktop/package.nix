@@ -21,6 +21,8 @@
     (unsafe-add-raw-args ''--symlink "$HOME/.machine-id" /etc/machine-id'')
     wayland
     pulse
+    pipewire
+    camera
     (set-env "DISPLAY" ":42")
     # Disable the shared abstract socket and wait before starting X11 clients.
     (wrap-entry (entry: ''

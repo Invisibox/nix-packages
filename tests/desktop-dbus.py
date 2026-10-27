@@ -1,4 +1,4 @@
-"""Exercise theme signals and tray callbacks across the real D-Bus filter."""
+"""Exercise desktop D-Bus permissions and audio sockets with mock services."""
 
 import asyncio
 import os
@@ -59,6 +59,16 @@ class FileChooser(ServiceInterface):
         pass
 
 
+class Notifications(ServiceInterface):
+    def __init__(self):
+        super().__init__("org.freedesktop.Notifications")
+
+    @method()
+    def Notify(self, app: "s", replaces: "u", icon: "s", summary: "s", body: "s",
+               actions: "as", hints: "a{sv}", timeout: "i") -> "u":
+        return 1
+
+
 async def checked_call(bus, **args):
     reply = await bus.call(Message(**args))
     assert reply.message_type == MessageType.METHOD_RETURN, reply.body
@@ -88,6 +98,21 @@ async def host():
             return Message.new_method_return(msg)
 
     watcher.add_message_handler(handle)
+
+    notifications = await MessageBus().connect()
+    notifications.export("/org/freedesktop/Notifications", Notifications())
+    await notifications.request_name("org.freedesktop.Notifications")
+
+    async def audio(reader, writer):
+        writer.write(b"audio")
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    runtime = os.environ["XDG_RUNTIME_DIR"]
+    os.makedirs(f"{runtime}/pulse")
+    pulse = await asyncio.start_unix_server(audio, path=f"{runtime}/pulse/native")
+    pipewire = await asyncio.start_unix_server(audio, path=f"{runtime}/pipewire-0")
     print("READY", flush=True)
     while True:
         await asyncio.sleep(0.2)
@@ -96,7 +121,19 @@ async def host():
 
 
 async def client(tray):
+    runtime = os.environ["XDG_RUNTIME_DIR"]
+    for path in [f"{runtime}/pulse/native", f"{runtime}/pipewire-0"]:
+        reader, writer = await asyncio.open_unix_connection(path)
+        assert await asyncio.wait_for(reader.readexactly(5), 5) == b"audio"
+        writer.close()
+        await writer.wait_closed()
+
     bus = await MessageBus().connect()
+    assert await checked_call(bus, destination="org.freedesktop.Notifications",
+                              path="/org/freedesktop/Notifications",
+                              interface="org.freedesktop.Notifications", member="Notify",
+                              signature="susssasa{sv}i",
+                              body=["sandbox-probe", 0, "", "Permission probe", "", [], {}, -1]) == [1]
     changed = asyncio.Event()
 
     def handle(msg):

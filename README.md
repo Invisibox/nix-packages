@@ -68,7 +68,7 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 
 - `~/Documents` 只读；其余宿主用户目录不挂载，包括 Downloads、SSH 密钥和浏览器配置。应用内也不能通过文件选择门户读取其他位置。
 - 每个应用的可写 HOME 独立保存在 `~/.local/share/jail.nix/home/<包名>/`，登录状态、缓存、接收文件和网盘下载保存在这里。Documents 不能作为下载目标，可选择应用私有 HOME 下的目录。
-- 允许网络、GPU、PulseAudio 音频、Wayland 及剪贴板；旧 X11 客户端使用沙箱内部独立的 xwayland-satellite。
+- 允许网络、GPU、PulseAudio / PipeWire 音频播放和麦克风录音、`/dev/video*` 摄像头设备、Wayland 及剪贴板；旧 X11 客户端使用沙箱内部独立的 xwayland-satellite。
 - D-Bus 允许通知、托盘、Fcitx5，以及桌面门户的 `OpenURI`、`Settings.Read/ReadOne/ReadAll` 和 `SettingChanged`。应用可读取系统深浅色模式并接收切换通知；应用内需选择跟随系统。微信另允许注册 `org.kde.*`，适配其 Qt 旧式托盘服务名，与 Flathub 微信的权限一致。`xdg-open` 和 `$BROWSER` 只接受 HTTP(S)，通过宿主门户使用系统默认浏览器；禁止调用 `OpenFile`、文件选择器及任意宿主服务。
 - 安装后的命令 `wechat-jailed`、`qq-jailed`、`baidunetdisk-jailed`，以及兼容命令 `wechat`、`qq`、`baidunetdisk` 和桌面入口均经过沙箱。
 
@@ -93,7 +93,7 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 ## GitHub Actions 与 Cachix
 
 `.github/workflows/packages.yml` 始终检查格式、脚本回归及 flake 求值，使用 `scripts/select-builds.sh` 比较前后版本的 derivation，只构建发生变化的输出。push 对比推送前的提交，PR 对比与目标分支的共同祖先；定时更新对比更新前的 HEAD，手动不更新时对比上一个提交。共享沙箱、overlay 或锁定依赖的变化会自动选中受影响的软件，只有文档变化时不构建；首次运行缺少基线或旧版本无法求值时回退为全量构建。
-沙箱检查工具发生变化时才运行权限测试，验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离。PR job 只有只读仓库权限；测试使用临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。每天 UTC 03:17（北京时间 11:17）更新 nixpkgs 和原有四个应用。
+沙箱检查工具发生变化时才运行权限测试，验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离。PR job 只有只读仓库权限；测试使用模拟摄像头、音频服务、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。每天 UTC 03:17（北京时间 11:17）更新 nixpkgs 和原有四个应用。
 定时更新只有在检查和所选构建通过后才提交，失败不会推送版本更新。手动运行可勾选 `update` 执行相同更新过程。
 使用标准 `ubuntu-latest` runner，公开仓库适用 GitHub Actions 免费额度。
 

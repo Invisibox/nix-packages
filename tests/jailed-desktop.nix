@@ -33,6 +33,8 @@
       fi
       test ! -e /run/dbus/system_bus_socket
       test -s /etc/machine-id
+      test -c /dev/video-jail-policy-probe
+      : <> /dev/video-jail-policy-probe
       ${python}/bin/python ${./desktop-dbus.py} "$1"
     '';
   };
@@ -87,7 +89,10 @@ in
     runtimeInputs = with pkgs; [coreutils dbus gnugrep systemd weston];
     text = ''
       if [[ "''${1-}" != --session ]]; then
-        exec timeout 60 dbus-run-session -- "$0" --session
+        # Use /dev/null as a camera fixture, without opening real capture devices.
+        exec timeout 60 dbus-run-session -- ${pkgs.bubblewrap}/bin/bwrap \
+          --dev-bind / / --dev /dev \
+          --dev-bind /dev/null /dev/video-jail-policy-probe "$0" --session
       fi
       test_root=$(mktemp -d)
       cleanup() {
@@ -131,6 +136,6 @@ in
       test ! -e "$test_root/home/Documents/forbidden"
       grep -Fx 'Exec=${wrapped}/bin/jail-policy-probe %U' \
         ${wrapped}/share/applications/sandbox-probe.desktop
-      echo "Sandbox policy: filesystem, persistence, browser, theme changes and tray callbacks passed"
+      echo "Sandbox policy: filesystem, persistence, browser, notifications, camera, audio, theme changes and tray callbacks passed"
     '';
   }
