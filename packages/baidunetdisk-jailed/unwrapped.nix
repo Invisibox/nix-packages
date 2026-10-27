@@ -8,7 +8,8 @@
     pname = "${pname}-unpacked";
     inherit version;
     src = pkgs.fetchurl {
-      url = "https://pkg-ant.baidu.com/issue/netdisk/LinuxGuanjia/8.7.0/baidunetdisk_8.7.0_amd64.deb";
+      # Avoid pkg-ant's redirects to PCDN nodes on port 19001, unreachable in CI.
+      url = "https://issuecdn.baidupcs.com/issue/netdisk/LinuxGuanjia/8.7.0/baidunetdisk_8.7.0_amd64.deb";
       hash = "sha256-7HHCrRFRYJ/Q2LhtlRhMC0V9bbWqGIYeCxX8I8z+Afc=";
     };
     nativeBuildInputs = [pkgs.dpkg];
