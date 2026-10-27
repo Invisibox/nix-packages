@@ -78,22 +78,25 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 ## 更新版本
 
 ```sh
+# 更新全部 flake inputs（nixpkgs、jail-nix）：
+nix flake update
+# 更新独立打包的四个应用：
 ./scripts/update-all.sh
 # 或仅更新一个应用：
 ./scripts/update-neiro.sh
-# Gamescope、Nautilus 以及构建依赖随 nixpkgs 更新：
-nix flake update nixpkgs
 nix flake check --print-build-logs
 ```
 
 四个应用的更新脚本位于 `scripts/`，GitHub API 请求支持 `GITHUB_TOKEN`。
-Brave Origin 跟踪含指定 beta deb 的发布，Paseo 和 OxideTerm 跟踪最新 Release；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
+Paseo 和 OxideTerm 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新源码哈希，无需额外安装工具。
+Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
+Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新，百度网盘暂时手动维护版本和哈希。
 Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届时需调整补丁后再更新。
 
 ## GitHub Actions 与 Cachix
 
 `.github/workflows/packages.yml` 始终检查格式、脚本回归及 flake 求值，使用 `scripts/select-builds.sh` 比较前后版本的 derivation，只构建发生变化的输出。push 对比推送前的提交，PR 对比与目标分支的共同祖先；定时更新对比更新前的 HEAD，手动不更新时对比上一个提交。共享沙箱、overlay 或锁定依赖的变化会自动选中受影响的软件，只有文档变化时不构建；首次运行缺少基线或旧版本无法求值时回退为全量构建。
-沙箱检查工具发生变化时才运行权限测试，验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离。PR job 只有只读仓库权限；测试使用模拟摄像头、音频服务、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。每天 UTC 03:17（北京时间 11:17）更新 nixpkgs 和原有四个应用。
+沙箱检查工具发生变化时才运行权限测试，验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离。PR job 只有只读仓库权限；测试使用模拟摄像头、音频服务、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。每天 UTC 03:17（北京时间 11:17）更新 nixpkgs、jail-nix 和原有四个应用。
 定时更新只有在检查和所选构建通过后才提交，失败不会推送版本更新。手动运行可勾选 `update` 执行相同更新过程。
 使用标准 `ubuntu-latest` runner，公开仓库适用 GitHub Actions 免费额度。
 
