@@ -10,6 +10,8 @@
         test "''${QT_IM_MODULE-unset}" = "$2"
         test "''${GTK_IM_MODULE-unset}" = "$3"
         test "''${XMODIFIERS-unset}" = "$4"
+        test "''${SDL_IM_MODULE-unset}" = "''${5-unset}"
+        test "''${GLFW_IM_MODULE-unset}" = "''${6-unset}"
         exit 0
       fi
       test "$(cat "$HOME/Documents/readable")" = documents
@@ -146,7 +148,7 @@ in
       done
       env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE \
         HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe tray
-      for launcher in ${wrapped}/bin/jail-policy-probe ${wechatWrapped}/bin/jail-policy-wechat-probe ${qqWrapped}/bin/jail-policy-qq-probe ${fhsWrapped}/bin/jail-policy-fhs-probe; do
+      for launcher in ${wrapped}/bin/jail-policy-probe ${qqWrapped}/bin/jail-policy-qq-probe ${fhsWrapped}/bin/jail-policy-fhs-probe; do
         env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE -u XMODIFIERS \
           HOME="$test_root/home" LANG=C.UTF-8 "$launcher" ime unset unset unset
         env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE XMODIFIERS=@im=fcitx \
@@ -156,6 +158,15 @@ in
         env -u TERM QT_IM_MODULE= GTK_IM_MODULE= XMODIFIERS= \
           HOME="$test_root/home" LANG=C.UTF-8 "$launcher" ime "" "" ""
       done
+      env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE -u XMODIFIERS -u SDL_IM_MODULE -u GLFW_IM_MODULE \
+        HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe \
+        ime fcitx fcitx @im=fcitx fcitx fcitx
+      env -u TERM QT_IM_MODULE=ibus GTK_IM_MODULE=ibus XMODIFIERS=@im=ibus SDL_IM_MODULE=ibus GLFW_IM_MODULE=ibus \
+        HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe \
+        ime fcitx fcitx @im=fcitx fcitx fcitx
+      env -u TERM QT_IM_MODULE= GTK_IM_MODULE= XMODIFIERS= SDL_IM_MODULE= GLFW_IM_MODULE= \
+        HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe \
+        ime fcitx fcitx @im=fcitx fcitx fcitx
       test -f "$test_root/home/.local/share/jail.nix/home/jail-policy-probe/persistent"
       test -f "$test_root/home/.local/share/jail.nix/home/jail-policy-fhs-probe/persistent"
       test ! -e "$test_root/home/persistent"
