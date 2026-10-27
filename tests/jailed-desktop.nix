@@ -90,7 +90,8 @@ in
     text = ''
       if [[ "''${1-}" != --session ]]; then
         # Use /dev/null as a camera fixture, without opening real capture devices.
-        exec timeout 60 dbus-run-session -- ${pkgs.bubblewrap}/bin/bwrap \
+        exec timeout 60 dbus-run-session \
+          --config-file=${pkgs.dbus}/share/dbus-1/session.conf -- ${pkgs.bubblewrap}/bin/bwrap \
           --dev-bind / / --dev /dev \
           --dev-bind /dev/null /dev/video-jail-policy-probe "$0" --session
       fi
