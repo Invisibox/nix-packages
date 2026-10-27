@@ -58,9 +58,7 @@
     (set-env "XDG_DATA_DIRS" "${application}/share:${pkgs.hicolor-icon-theme}/share")
     (set-env "NIXOS_OZONE_WL" "1")
     (set-env "QT_QPA_PLATFORM" "wayland;xcb")
-    (set-env "QT_IM_MODULE" "fcitx")
-    (set-env "GTK_IM_MODULE" "fcitx")
-    (set-env "XMODIFIERS" "@im=fcitx")
+    (compose (map try-fwd-env ["QT_IM_MODULE" "GTK_IM_MODULE" "XMODIFIERS"]))
     (dbus {
       # Qt's legacy tray names use hyphens, outside a narrower D-Bus subtree.
       own = lib.optionals (program == "wechat") ["org.kde.*"];

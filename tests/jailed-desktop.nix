@@ -6,6 +6,12 @@
   probe = pkgs.writeShellApplication {
     name = "sandbox-probe";
     text = ''
+      if [[ "$1" == ime ]]; then
+        test "''${QT_IM_MODULE-unset}" = "$2"
+        test "''${GTK_IM_MODULE-unset}" = "$3"
+        test "''${XMODIFIERS-unset}" = "$4"
+        exit 0
+      fi
       test "$(cat "$HOME/Documents/readable")" = documents
       test ! -e "$HOME/.ssh/private"
       test ! -e "$HOME/Downloads/private"
@@ -50,6 +56,7 @@
       probe
       desktop
       (pkgs.writeShellScriptBin "wechat" ''exec ${probe}/bin/sandbox-probe "$@"'')
+      (pkgs.writeShellScriptBin "qq" ''exec ${probe}/bin/sandbox-probe "$@"'')
     ];
     meta.description = "Sandbox permission probe";
   };
@@ -65,15 +72,21 @@
     program = "wechat";
     package = application;
   };
+  qqWrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
+    inherit jail;
+    pname = "jail-policy-qq-probe";
+    program = "qq";
+    package = application;
+  };
   fhsWrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
     inherit jail;
     pname = "jail-policy-fhs-probe";
-    program = "sandbox-probe";
+    program = "baidunetdisk";
     fhs = true;
     package = pkgs.buildFHSEnv {
       pname = "fhs-sandbox-probe";
       version = "1";
-      executableName = "sandbox-probe";
+      executableName = "baidunetdisk";
       targetPkgs = p: [p.xdg-utils];
       runScript = "${probe}/bin/sandbox-probe";
       extraInstallCommands = ''
@@ -127,16 +140,28 @@ in
       # Prove the mock accepts the forbidden method before testing the proxy.
       busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop \
         org.freedesktop.portal.FileChooser OpenFile 'ssa{sv}' "" "" 0
+      export QT_IM_MODULE=fcitx GTK_IM_MODULE=fcitx XMODIFIERS=@im=fcitx
       for launcher in ${wrapped}/bin/jail-policy-probe ${fhsWrapped}/bin/jail-policy-fhs-probe; do
         env -u TERM HOME="$test_root/home" LANG=C.UTF-8 "$launcher" settings
       done
-      env -u TERM HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe tray
+      env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE \
+        HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe tray
+      for launcher in ${wrapped}/bin/jail-policy-probe ${wechatWrapped}/bin/jail-policy-wechat-probe ${qqWrapped}/bin/jail-policy-qq-probe ${fhsWrapped}/bin/jail-policy-fhs-probe; do
+        env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE -u XMODIFIERS \
+          HOME="$test_root/home" LANG=C.UTF-8 "$launcher" ime unset unset unset
+        env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE XMODIFIERS=@im=fcitx \
+          HOME="$test_root/home" LANG=C.UTF-8 "$launcher" ime unset unset @im=fcitx
+        env -u TERM QT_IM_MODULE=ibus GTK_IM_MODULE=ibus XMODIFIERS=@im=ibus \
+          HOME="$test_root/home" LANG=C.UTF-8 "$launcher" ime ibus ibus @im=ibus
+        env -u TERM QT_IM_MODULE= GTK_IM_MODULE= XMODIFIERS= \
+          HOME="$test_root/home" LANG=C.UTF-8 "$launcher" ime "" "" ""
+      done
       test -f "$test_root/home/.local/share/jail.nix/home/jail-policy-probe/persistent"
       test -f "$test_root/home/.local/share/jail.nix/home/jail-policy-fhs-probe/persistent"
       test ! -e "$test_root/home/persistent"
       test ! -e "$test_root/home/Documents/forbidden"
       grep -Fx 'Exec=${wrapped}/bin/jail-policy-probe %U' \
         ${wrapped}/share/applications/sandbox-probe.desktop
-      echo "Sandbox policy: filesystem, persistence, browser, notifications, camera, audio, theme changes and tray callbacks passed"
+      echo "Sandbox policy: input methods, filesystem, persistence, browser, notifications, camera, audio, theme changes and tray callbacks passed"
     '';
   }
