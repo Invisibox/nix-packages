@@ -52,7 +52,7 @@ esac
     }) package.outputs);
   })
 ' | jq -c --slurpfile cache cache.json '
-  to_entries[] | {attr: .key, cacheStatus: $cache[0][.key] // "notBuilt"} + .value
+  to_entries[] | {attr: .key, cacheStatus: ($cache[0][.key] // "notBuilt")} + .value
 '
 MOCK
 chmod +x "$test_root/bin/nix"
