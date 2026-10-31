@@ -3,24 +3,6 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
-self_name="${BASH_SOURCE[0]##*/}"
-
-update_scripts=()
-shopt -s nullglob
-for script_path in "${script_dir}"/update-*.sh; do
-  script_name="${script_path##*/}"
-  if [[ "${script_name}" == "${self_name}" ]]; then
-    continue
-  fi
-
-  update_scripts+=("${script_path}")
-done
-shopt -u nullglob
-
-if (( ${#update_scripts[@]} == 0 )); then
-  echo "error: no update scripts found in ${script_dir}" >&2
-  exit 1
-fi
 
 if ! command -v nix >/dev/null 2>&1; then
   echo "error: missing command: nix" >&2
@@ -29,25 +11,26 @@ fi
 
 cd "${repo_root}"
 
+packages_json="$(nix eval --json --no-write-lock-file '.#packages.x86_64-linux' --apply '
+  packages: builtins.filter (name: (builtins.getAttr name packages) ? updateScript) (builtins.attrNames packages)
+')"
+mapfile -t packages < <(jq -r '.[]' <<<"${packages_json}")
+if (( ${#packages[@]} == 0 )); then
+  echo 'error: no packages export updateScript' >&2
+  exit 1
+fi
+
 failures=()
 
-for script_path in "${update_scripts[@]}"; do
-  script_name="${script_path##*/}"
-
-  if [[ ! -x "${script_path}" ]]; then
-    echo "error: update script is not executable: ${script_path}" >&2
-    failures+=("${script_name} (not executable)")
-    continue
-  fi
-
+for package in "${packages[@]}"; do
   echo
-  echo "==> ${script_name}"
-  if "${script_path}"; then
-    echo "==> ${script_name} completed"
+  echo "==> ${package}"
+  if nix run --no-write-lock-file ".#packages.x86_64-linux.${package}.updateScript"; then
+    echo "==> ${package} completed"
   else
     status=$?
-    echo "error: ${script_name} failed with exit status ${status}" >&2
-    failures+=("${script_name} (${status})")
+    echo "error: ${package} failed with exit status ${status}" >&2
+    failures+=("${package} (${status})")
   fi
 done
 

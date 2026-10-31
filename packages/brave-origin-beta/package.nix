@@ -174,6 +174,10 @@ in
       "$out/opt/brave.com/brave-origin-beta/brave" --version
     '';
 
+    passthru.updateScript = pkgs.callPackage ../../lib/update-script.nix {
+      script = "update-brave-origin.sh";
+    };
+
     meta = {
       description = "Minimalist browser from the makers of Brave";
       homepage = "https://brave.com/origin/";

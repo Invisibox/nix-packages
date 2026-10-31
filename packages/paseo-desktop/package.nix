@@ -182,6 +182,10 @@
       )
     '';
 
+    passthru.updateScript = pkgs.callPackage ../../lib/update-script.nix {
+      script = "update-paseo.sh";
+    };
+
     meta = with lib; {
       description = "Paseo Desktop";
       homepage = "https://github.com/getpaseo/paseo";

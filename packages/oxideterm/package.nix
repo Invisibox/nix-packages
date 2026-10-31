@@ -77,6 +77,10 @@
       )
     '';
 
+    passthru.updateScript = pkgs.callPackage ../../lib/update-script.nix {
+      script = "update-oxide-term.sh";
+    };
+
     meta = {
       description = "Modern SSH terminal client built with Rust and Tauri";
       homepage = "https://github.com/AnalyseDeCircuit/oxideterm";

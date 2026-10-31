@@ -3,6 +3,8 @@
   fetchpatch,
 }:
 gamescope.overrideAttrs (_final: prev: {
+  # The upstream updater targets nixpkgs; this package follows the locked input.
+  passthru = builtins.removeAttrs (prev.passthru or {}) ["updateScript"];
   # https://github.com/ValveSoftware/gamescope/issues/1622
   NIX_CFLAGS_COMPILE = (prev.NIX_CFLAGS_COMPILE or []) ++ ["-fno-fast-math"];
   patches =

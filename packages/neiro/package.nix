@@ -1,5 +1,6 @@
 {
   lib,
+  callPackage,
   rustPlatform,
   fetchFromGitLab,
   pkg-config,
@@ -30,6 +31,10 @@ rustPlatform.buildRustPackage {
       --prefix PATH : ${lib.makeBinPath [pipewire wireplumber ffmpeg]}
     install -Dm644 samples/CREDITS.md "$out/share/doc/neiro/samples-CREDITS.md"
   '';
+
+  passthru.updateScript = callPackage ../../lib/update-script.nix {
+    script = "update-neiro.sh";
+  };
 
   meta = {
     description = "Laptop speaker enhancement using the laptop's Dolby DAX3 tuning";
