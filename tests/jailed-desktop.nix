@@ -62,25 +62,25 @@
     ];
     meta.description = "Sandbox permission probe";
   };
-  wrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
+  wrapped = pkgs.callPackage ../lib/jailed-desktop/package.nix {
     inherit jail;
     pname = "jail-policy-probe";
     program = "sandbox-probe";
     package = application;
   };
-  wechatWrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
+  wechatWrapped = pkgs.callPackage ../lib/jailed-desktop/package.nix {
     inherit jail;
     pname = "jail-policy-wechat-probe";
     program = "wechat";
     package = application;
   };
-  qqWrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
+  qqWrapped = pkgs.callPackage ../lib/jailed-desktop/package.nix {
     inherit jail;
     pname = "jail-policy-qq-probe";
     program = "qq";
     package = application;
   };
-  fhsWrapped = pkgs.callPackage ../packages/jailed-desktop/package.nix {
+  fhsWrapped = pkgs.callPackage ../lib/jailed-desktop/package.nix {
     inherit jail;
     pname = "jail-policy-fhs-probe";
     program = "baidunetdisk";

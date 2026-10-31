@@ -2,7 +2,7 @@
   callPackage,
   jail,
 }:
-callPackage ../jailed-desktop/package.nix {
+callPackage ../../lib/jailed-desktop/package.nix {
   inherit jail;
   package = callPackage ./unwrapped.nix {};
   pname = "baidunetdisk-jailed";

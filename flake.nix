@@ -15,17 +15,7 @@
       config.allowUnfree = true;
       overlays = [self.overlays.default];
     };
-    packageNames = [
-      "brave-origin-beta"
-      "paseo-desktop"
-      "oxideterm"
-      "neiro"
-      "gamescope-patched"
-      "nautilus-with-extensions"
-      "wechat-jailed"
-      "qq-jailed"
-      "baidunetdisk-jailed"
-    ];
+    packageNames = builtins.attrNames (self.overlays.default pkgs pkgs);
   in {
     overlays.default = import ./overlay.nix {inherit jail-nix;};
     packages.${system} = nixpkgs.lib.genAttrs packageNames (name: pkgs.${name});
