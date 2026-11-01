@@ -102,6 +102,8 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 
 参考[自动化 NUR](https://blog.starryreverie.cc/posts/2026/automate-nur/)，`.github/workflows/packages.yml` 分为求值、并行构建和提交更新三个阶段，仅运行于 `x86_64-linux` 的 `ubuntu-latest` runner。
 
+求值和构建阶段均启用 [Magic Nix Cache](https://github.com/DeterminateSystems/magic-nix-cache-action)，通过 GitHub Actions 缓存复用 Nix 构建结果，无需额外密钥。该缓存仅供 CI 使用；消费端仍通过下述 Cachix 配置获取构建结果。
+
 求值阶段检查格式、脚本回归和 flake，并通过锁定 nixpkgs 提供的 `nix-eval-jobs --check-cache-status` 并行求值。配置 Cachix 后先读取该缓存，`scripts/select-builds.sh` 为远端缓存缺失的每个包生成一个 matrix job；已由更新脚本在本地构建的包也会进入构建阶段，以便上传。缓存被清理或上次构建失败后，即使 Git 内容没有变化也会重试；全部命中缓存时跳过构建。每个 job 独立完成，单包失败不取消其他包。
 
 沙箱检查工具仍按 derivation 变化运行权限测试：push 对比推送前的提交，PR 对比与目标分支的共同祖先，定时更新对比更新前的 HEAD，手动不更新时对比上一个提交。缺少基线或基线无法求值时运行权限测试。测试验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离；使用模拟设备、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。

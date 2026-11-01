@@ -37,6 +37,8 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
 
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
+
       - uses: cachix/cachix-action@v17
         if: vars.CACHIX_CACHE_NAME != ''
         with:
@@ -105,6 +107,8 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - uses: cachix/cachix-action@v17
         if: vars.CACHIX_CACHE_NAME != ''
