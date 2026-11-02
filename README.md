@@ -10,7 +10,7 @@
 | `neiro` | `0.2.0` / `2c48e7e` | Rust 源码构建，PipeWire / WirePlumber / ffmpeg 包装 |
 | `gamescope-patched` | 跟随 nixpkgs | `-fno-fast-math` 和 Gamescope 退出修复补丁 |
 | `nautilus-with-extensions` | 跟随 nixpkgs | GStreamer good/bad，以及 nautilus-python、open-any-terminal、code-nautilus、Flickernaut、GVfs、Sushi |
-| `wechat-jailed` | `4.1.13.26` | nixpkgs PR #560225、原生 Wayland、jail.nix 沙箱、独立数据目录、Documents 只读、网页门户 |
+| `wechat-jailed` | 跟随 nixpkgs `wechat` | 原生 Wayland、jail.nix 沙箱、独立数据目录、Documents 只读、网页门户 |
 | `qq-jailed` | 跟随 nixpkgs `qq` | 同上 |
 | `baidunetdisk-jailed` | `8.7.0` | 官方 deb + FHS 运行环境，使用相同沙箱 |
 
@@ -62,6 +62,7 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 ```
 
 也导出 `overlays.default`，供需要使用自己的 nixpkgs 或覆盖依赖的配置使用。overlay 新增上述九个名字，保留 nixpkgs 原有软件包；消费端需允许微信、QQ 和百度网盘的 unfree 许可，使用不同依赖时需要重新构建。
+Paseo 和百度网盘仍依赖 GTK2，flake 将其弃用标记降为警告；使用 overlay 时需设置 `nixpkgs.config.problems.handlers."gtk+".broken = "warn"`。
 
 本地修改包定义后，在 `nix-config` 中执行 `nix flake update nix-packages`，刷新本地 input 的锁定快照。
 
@@ -72,13 +73,13 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 - `~/Documents` 只读；其余宿主用户目录不挂载，包括 Downloads、SSH 密钥和浏览器配置。应用内也不能通过文件选择门户读取其他位置。
 - 每个应用的可写 HOME 独立保存在 `~/.local/share/jail.nix/home/<包名>/`，登录状态、缓存、接收文件和网盘下载保存在这里。Documents 不能作为下载目标，可选择应用私有 HOME 下的目录。
 - 允许网络、GPU、PulseAudio / PipeWire 音频播放和麦克风录音、`/dev/video*` 摄像头设备、Wayland 及剪贴板；旧 X11 客户端使用沙箱内部独立的 xwayland-satellite。
-- 微信采用 [nixpkgs PR #560225](https://github.com/NixOS/nixpkgs/pull/560225) 的 deb 打包和原生 Wayland 输入支持，由上游启动脚本选择 Wayland 和 text-input-v3；沙箱不再设置微信的旧式输入法变量和 `QT_QPA_PLATFORM`。
+- 微信使用 nixpkgs 的 deb 打包和原生 Wayland 输入支持，由上游启动脚本选择 Wayland 和 text-input-v3；沙箱不设置微信的旧式输入法变量和 `QT_QPA_PLATFORM`。
 - QQ 和百度网盘按 Flathub 的包级配置，仅转发宿主已设置的 `QT_IM_MODULE`、`GTK_IM_MODULE` 和 `XMODIFIERS`，不强制指定输入法。QQ 使用 nixpkgs 已提供的 Wayland IME 和 text-input-v3 参数；百度网盘通过沙箱内的 Xwayland 运行。
 - D-Bus 允许通知、托盘、Fcitx5，以及桌面门户的 `OpenURI`、`Settings.Read/ReadOne/ReadAll` 和 `SettingChanged`。应用可读取系统深浅色模式并接收切换通知；应用内需选择跟随系统。微信另允许注册 `org.kde.*`，适配其 Qt 旧式托盘服务名，与 Flathub 微信的权限一致。`xdg-open` 和 `$BROWSER` 只接受 HTTP(S)，通过宿主门户使用系统默认浏览器；禁止调用 `OpenFile`、文件选择器及任意宿主服务。
 - 安装后的命令 `wechat-jailed`、`qq-jailed`、`baidunetdisk-jailed`，以及兼容命令 `wechat`、`qq`、`baidunetdisk` 和桌面入口均经过沙箱。
 
 网络、音频和剪贴板属于主动授予的权限；这三个客户端仍可上传 Documents 中的内容。旧 Flatpak 的安装和用户数据不会自动删除或迁移。
-百度网盘的 deb URL 和 SHA-256 固定在 `packages/baidunetdisk-jailed/unwrapped.nix`，升级时一并更新并重新构建；QQ 随 `nix flake update nixpkgs` 更新。微信暂固定上述 PR 的提交，待 nixpkgs 合并后移除临时导入，恢复跟随 nixpkgs。
+百度网盘的 deb URL 和 SHA-256 固定在 `packages/baidunetdisk-jailed/unwrapped.nix`，升级时一并更新并重新构建；微信和 QQ 随 `nix flake update nixpkgs` 更新。
 
 ## 更新版本
 
@@ -95,7 +96,7 @@ nix flake check --print-build-logs
 四个应用通过 `passthru.updateScript` 导出更新器，可在仓库内执行 `nix run '.#<包名>.updateScript'`；运行环境由 Nix 提供，工作目录自动切到 Git 仓库根目录。`update-all.sh` 自动发现这些更新器，逐个执行并汇总失败。原有 `scripts/update-*.sh` 仍可直接调用，GitHub API 请求支持 `GITHUB_TOKEN`。
 Paseo 和 OxideTerm 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新源码哈希，无需额外安装工具。
 Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
-Gamescope、Nautilus 和 QQ 随 nixpkgs 更新；微信暂固定 PR #560225，百度网盘暂时手动维护版本和哈希。
+Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新，百度网盘暂时手动维护版本和哈希。
 Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届时需调整补丁后再更新。
 
 ## GitHub Actions 与 Cachix

@@ -13,6 +13,8 @@
     pkgs = import nixpkgs {
       inherit system;
       config.allowUnfree = true;
+      # Paseo and Baidu Netdisk still depend on GTK2.
+      config.problems.handlers."gtk+".broken = "warn";
       overlays = [self.overlays.default];
     };
     packageNames = builtins.attrNames (self.overlays.default pkgs pkgs);
