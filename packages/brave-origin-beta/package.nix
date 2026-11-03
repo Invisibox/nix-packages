@@ -3,7 +3,7 @@
   pkgs,
 }: let
   pname = "brave-origin-beta";
-  version = "1.100.45";
+  version = "1.100.47";
 
   deps = with pkgs; [
     alsa-lib
@@ -60,7 +60,7 @@ in
 
     src = pkgs.fetchurl {
       url = "https://github.com/brave/brave-browser/releases/download/v${version}/brave-origin-beta_${version}_amd64.deb";
-      hash = "sha256-wIUbaC78QDmL/w0fF3LlMR04ckw7YtcPG4hPC3xpUtc=";
+      hash = "sha256-+NRqLcVj7kfXZh+0D4J9mro3gP7FKVObAgRUsRmdWqU=";
     };
 
     dontConfigure = true;
