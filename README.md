@@ -109,7 +109,7 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 
 构建阶段继续启用 [Magic Nix Cache](https://github.com/DeterminateSystems/magic-nix-cache-action)，无需额外密钥。接入 Attic 后，求值阶段仅查询公开缓存，避免包仅命中 CI 内部缓存就跳过发布；构建阶段仍可从 Magic Nix Cache 下载后上传到 Attic。尚未配置 Attic 时，保持原求值缓存行为。
 
-求值阶段检查格式、脚本回归和 flake，并通过锁定 nixpkgs 提供的 `nix-eval-jobs --check-cache-status` 并行求值。`scripts/select-builds.sh` 为公开缓存缺失的每个包生成一个 matrix job；已由更新脚本在本地构建的包也进入构建阶段，以便上传。缓存被清理或上次构建失败后，即使 Git 内容没有变化也会重试；全部命中时跳过构建。每个 job 独立完成，单包失败不取消其他包。目前 matrix 串行运行，每次上传也限制为一路，适配 1.5 GB 内存 VPS。
+求值阶段检查格式、脚本回归和 flake，并通过锁定 nixpkgs 提供的 `nix-eval-jobs --check-cache-status` 并行求值。`scripts/select-builds.sh` 为公开缓存缺失的每个包生成一个 matrix job；已由更新脚本在本地构建的包也进入构建阶段，以便上传。缓存被清理或上次构建失败后，即使 Git 内容没有变化也会重试；全部命中时跳过构建。每个 job 独立完成，单包失败不取消其他包。matrix 最多同时运行两个 jobs，单个 Attic 客户端默认一路上传：构建和 runner 准备可并行，默认总上传并发最多为两路，适配 1.5 GB 内存 VPS。
 
 沙箱检查工具仍按 derivation 变化运行权限测试：push 对比推送前的提交，PR 对比与目标分支的共同祖先，定时更新对比更新前的 HEAD，手动不更新时对比上一个提交。缺少基线或基线无法求值时运行权限测试。测试验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离；使用模拟设备、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。
 
@@ -121,12 +121,15 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 | --- | --- | --- |
 | Secret | `ATTIC_TOKEN` | Dokploy attic 容器内 `/var/lib/atticd/credentials/github-actions.token` 的完整内容 |
 | Variable | `ATTIC_PUBLIC_KEY` | `https://cache.455500.xyz/nix-packages/attic-cache-info` 中的完整 `public_key` |
+| Variable（可选） | `ATTIC_PUSH_JOBS` | 每个客户端同时上传路径数，默认 `1`；设为 `2` 时总上传并发最多为四路，需先观察 VPS 资源余量 |
 
 先保存 Secret，再保存 Variable。`ATTIC_PUBLIC_KEY` 非空即切换到 Attic；API 地址 `https://cache.455500.xyz/` 和缓存名已固定在工作流中。只有默认分支上的成功包上传，PR 只读且不接收写令牌。启用后缺少 token 或上传失败会使对应 job 失败。
 
-上传步骤会先显示目标缓存和 output 路径，随后每 30 秒报告 `attic push` 仍在运行及已耗时，并保留每个路径的成功/失败日志；结束时显示总耗时。定时提示表示命令仍在执行，不能据此判断字节传输进度或服务端处理进度。
+上传由 `scripts/push-attic.sh` 将一个包的所有 outputs 作为参数传给一次 `attic push --jobs 1`，统一规划和去重依赖闭包，跳过已缓存路径及官方签名依赖。先显示目标缓存和 output 路径，随后每 30 秒报告命令仍在运行及已耗时，并保留每个路径的成功/失败日志；结束时显示总耗时。定时提示表示命令仍在执行，不能据此判断字节传输进度或服务端处理进度。
 
-首次迁移先保留原 `CACHIX_CACHE_NAME` / `CACHIX_AUTH_TOKEN`，在 **Actions → Packages → Run workflow** 选择默认分支，勾选 `cache_backfill`、不勾选 `update`。它会包含当前全部包的所有 output，读取旧 Cachix 以复用已有结果，再以 `attic push --stdin --jobs 1` 上传到 Attic；官方签名依赖由 Attic 默认过滤，沙箱测试工具不上传。缺失的包在 runner 上构建，无需在 VPS 上搬运 Nix store。该操作覆盖当前版本，需要保留的历史版本需另行迁移。
+Attic 本就把一个 store path 内的文件打包成一个 NAR 请求，再 tar/scp 无法直接替代缓存 API；两路上传可重叠不同路径的网络等待，但不会拆分单个大 NAR。大包长时间入库还可能受 VPS 的分块写盘和 SQLite 操作限制：配套 [Dokploy Compose](https://github.com/Invisibox/Dokploy-services/tree/main/attic) 已将平均分块从 64 KiB 调整为 1 MiB，需在暂停上传、备份后重新部署才会生效。现有缓存仍可读，新旧块之间的去重率可能暂时下降。先采用两路观察，不能把其他主机的 scp 吞吐当作 GitHub runner 到此 VPS 的速度保证。
+
+首次迁移先保留原 `CACHIX_CACHE_NAME` / `CACHIX_AUTH_TOKEN`，在 **Actions → Packages → Run workflow** 选择默认分支，勾选 `cache_backfill`、不勾选 `update`。它会包含当前全部包的所有 output，读取旧 Cachix 以复用已有结果，再通过上述批量上传脚本发布到 Attic；官方签名依赖由 Attic 默认过滤，沙箱测试工具不上传。缺失的包在 runner 上构建，无需在 VPS 上搬运 Nix store。该操作覆盖当前版本，需要保留的历史版本需另行迁移。应用上传逻辑修改后应从最新默认分支启动新工作流，重跑旧 run 仍使用旧配置和源码快照。
 
 普通运行启用 Attic 后不再读取或写入 Cachix；尚未设置 `ATTIC_PUBLIC_KEY` 时沿用原 Cachix 流程。回填、实际下载及备份恢复验证完成后可删除旧 Cachix 变量与 Secret。完整部署和轮换步骤见 [Dokploy-services/attic](https://github.com/Invisibox/Dokploy-services/tree/main/attic)。服务器默认生成的 CI token 有效期为 365 天；到期前递增 Dokploy 的 `ATTIC_CI_TOKEN_REVISION`、重新部署并更新 GitHub Secret。
 

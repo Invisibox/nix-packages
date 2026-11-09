@@ -75,6 +75,7 @@ jobs:
           ./scripts/test-update-neiro.sh
           ./scripts/test-update-all.sh
           ./scripts/test-select-builds.sh
+          ./scripts/test-push-attic.sh
           nix flake check --no-build
 
       - name: Select uncached outputs
@@ -108,8 +109,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # Each matrix job uploads separately; keep writes within the VPS memory budget.
-      max-parallel: 1
+      # Two runners, one upload each by default, bound writes to the small VPS.
+      max-parallel: 2
       matrix:
         include: ${{ fromJSON(needs.evaluate.outputs.matrix) }}
     name: Build (${{ matrix.attr }})
@@ -161,36 +162,14 @@ jobs:
           vars.ATTIC_PUBLIC_KEY != ''
         env:
           ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+          ATTIC_PUSH_JOBS: ${{ vars.ATTIC_PUSH_JOBS || '1' }}
           OUTPUT_PATHS: ${{ toJSON(matrix.outPaths) }}
         run: |
           set -euo pipefail
           : "${ATTIC_TOKEN:?Set the ATTIC_TOKEN repository secret}"
           echo 'Preparing Attic client...'
           nix profile add --inputs-from . --no-write-lock-file 'nixpkgs#attic-client'
-          attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
-          printf 'Starting Attic push to %s (cache: %s, upload jobs: 1).\n' "$ATTIC_SERVER" "$ATTIC_CACHE"
-          jq -r '.[] | "  Output: \(.)"' <<< "$OUTPUT_PATHS"
-          started_at=$SECONDS
-          # Attic hides its terminal progress bars in Actions, so report elapsed time.
-          (
-            trap 'exit 0' TERM INT
-            trap '[[ -z ${timer_pid:-} ]] || kill "$timer_pid" 2>/dev/null || true' EXIT
-            while true; do
-              sleep 30 &
-              timer_pid=$!
-              wait "$timer_pid"
-              printf 'Attic push is still running (%ss elapsed); waiting for transfer/server response.\n' "$((SECONDS - started_at))"
-            done
-          ) &
-          progress_pid=$!
-          trap 'kill "$progress_pid" 2>/dev/null || true; wait "$progress_pid" 2>/dev/null || true' EXIT
-          if jq -r '.[]' <<< "$OUTPUT_PATHS" | attic push --stdin --jobs 1 "ci:$ATTIC_CACHE"; then
-            printf 'Attic push completed in %ss.\n' "$((SECONDS - started_at))"
-          else
-            status=$?
-            printf '::error::Attic push failed after %ss (exit %s).\n' "$((SECONDS - started_at))" "$status"
-            exit "$status"
-          fi
+          ./scripts/push-attic.sh
 
       - name: Push successful outputs to Cachix before Attic is configured
         if: >-
