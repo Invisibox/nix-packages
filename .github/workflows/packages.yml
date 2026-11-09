@@ -11,6 +11,10 @@ on:
         description: Update flake inputs and application versions before building
         type: boolean
         default: false
+      cache_backfill:
+        description: Upload every current package to Attic, including cached outputs
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,6 +22,10 @@ permissions:
 concurrency:
   group: packages-${{ github.ref }}
   cancel-in-progress: false
+
+env:
+  ATTIC_SERVER: https://cache.455500.xyz/
+  ATTIC_CACHE: nix-packages
 
 jobs:
   evaluate:
@@ -36,11 +44,17 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            extra-substituters = ${{ vars.ATTIC_PUBLIC_KEY != '' && 'https://cache.455500.xyz/nix-packages' || '' }}
+            extra-trusted-public-keys = ${{ vars.ATTIC_PUBLIC_KEY }}
 
       - uses: DeterminateSystems/magic-nix-cache-action@v15
+        # Select work from the public caches; a CI-only hit still needs publishing.
+        if: vars.ATTIC_PUBLIC_KEY == ''
 
       - uses: cachix/cachix-action@v17
-        if: vars.CACHIX_CACHE_NAME != ''
+        if: >-
+          vars.CACHIX_CACHE_NAME != '' &&
+          (vars.ATTIC_PUBLIC_KEY == '' || (github.event_name == 'workflow_dispatch' && inputs.cache_backfill))
         with:
           name: ${{ vars.CACHIX_CACHE_NAME }}
           skipPush: true
@@ -65,7 +79,14 @@ jobs:
 
       - name: Select uncached outputs
         id: select
+        env:
+          CACHE_BACKFILL: ${{ github.event_name == 'workflow_dispatch' && inputs.cache_backfill }}
+          ATTIC_PUBLIC_KEY: ${{ vars.ATTIC_PUBLIC_KEY }}
         run: |
+          if [[ "$CACHE_BACKFILL" == true && -z "$ATTIC_PUBLIC_KEY" ]]; then
+            echo 'Set ATTIC_PUBLIC_KEY and ATTIC_TOKEN before requesting an Attic backfill.' >&2
+            exit 1
+          fi
           ./scripts/select-builds.sh > "$RUNNER_TEMP/builds.json"
           cat "$RUNNER_TEMP/builds.json"
           echo "build=$(jq '.matrix | length > 0' "$RUNNER_TEMP/builds.json")" >> "$GITHUB_OUTPUT"
@@ -87,6 +108,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Each matrix job uploads separately; keep writes within the VPS memory budget.
+      max-parallel: 1
       matrix:
         include: ${{ fromJSON(needs.evaluate.outputs.matrix) }}
     name: Build (${{ matrix.attr }})
@@ -107,11 +130,15 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            extra-substituters = ${{ vars.ATTIC_PUBLIC_KEY != '' && 'https://cache.455500.xyz/nix-packages' || '' }}
+            extra-trusted-public-keys = ${{ vars.ATTIC_PUBLIC_KEY }}
 
       - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - uses: cachix/cachix-action@v17
-        if: vars.CACHIX_CACHE_NAME != ''
+        if: >-
+          vars.CACHIX_CACHE_NAME != '' &&
+          (vars.ATTIC_PUBLIC_KEY == '' || (github.event_name == 'workflow_dispatch' && inputs.cache_backfill))
         with:
           name: ${{ vars.CACHIX_CACHE_NAME }}
           skipPush: true
@@ -127,11 +154,26 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           nix run '.#checks.x86_64-linux.jailed-desktop-policy'
 
-      - name: Push successful outputs to Cachix
+      - name: Push successful outputs to Attic
         if: >-
           !matrix.policy && github.event_name != 'pull_request' &&
           github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
-          vars.CACHIX_CACHE_NAME != ''
+          vars.ATTIC_PUBLIC_KEY != ''
+        env:
+          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+          OUTPUT_PATHS: ${{ toJSON(matrix.outPaths) }}
+        run: |
+          set -euo pipefail
+          : "${ATTIC_TOKEN:?Set the ATTIC_TOKEN repository secret}"
+          nix profile add --inputs-from . --no-write-lock-file 'nixpkgs#attic-client'
+          attic login ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
+          jq -r '.[]' <<< "$OUTPUT_PATHS" | attic push --stdin --jobs 1 "ci:$ATTIC_CACHE"
+
+      - name: Push successful outputs to Cachix before Attic is configured
+        if: >-
+          !matrix.policy && github.event_name != 'pull_request' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+          vars.ATTIC_PUBLIC_KEY == '' && vars.CACHIX_CACHE_NAME != ''
         env:
           CACHIX_CACHE_NAME: ${{ vars.CACHIX_CACHE_NAME }}
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
