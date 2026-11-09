@@ -13,6 +13,7 @@
 | `wechat-jailed` | 跟随 nixpkgs `wechat` | 原生 Wayland、jail.nix 沙箱、独立数据目录、Documents 只读、网页门户 |
 | `qq-jailed` | 跟随 nixpkgs `qq` | 同上 |
 | `baidunetdisk-jailed` | `8.7.0` | 官方 deb + FHS 运行环境，使用相同沙箱 |
+| `baidupcs-rust` | `2.4.0` | BaiduPCS-Rust 官方 Linux x86_64 发布包，直接运行本机 Web 服务 |
 
 Nautilus 输出是 `nautilus-env` 组合环境。使用它时，将
 `NAUTILUS_4_EXTENSION_DIR` 设置为 `${package}/lib/nautilus/extensions-4`；终端选择等 dconf 设置由消费端配置。
@@ -28,6 +29,7 @@ nix build '.#brave-origin-beta'
 nix build '.#gamescope-patched'
 nix build '.#nautilus-with-extensions'
 nix build '.#wechat-jailed' '.#qq-jailed' '.#baidunetdisk-jailed'
+nix build '.#baidupcs-rust'
 nix fmt -- --check .
 ./scripts/test-update-neiro.sh
 ./scripts/test-update-all.sh
@@ -36,7 +38,7 @@ nix flake check --print-build-logs
 nix run '.#checks.x86_64-linux.jailed-desktop-policy'
 ```
 
-`nix flake check` 会构建全部九个包和沙箱检查工具，Neiro 保留上游测试。沙箱检查需在构建沙箱外运行上面的 `nix run`，会启动临时的 headless Weston 和测试 D-Bus，不访问真实应用数据或打开浏览器。首次使用 Git flake 前，需将文件加入 Git：
+`nix flake check` 会构建全部十个包和沙箱检查工具，Neiro 保留上游测试。沙箱检查需在构建沙箱外运行上面的 `nix run`，会启动临时的 headless Weston 和测试 D-Bus，不访问真实应用数据或打开浏览器。首次使用 Git flake 前，需将文件加入 Git：
 
 ```sh
 git add .
@@ -61,8 +63,10 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 }
 ```
 
-也导出 `overlays.default`，供需要使用自己的 nixpkgs 或覆盖依赖的配置使用。overlay 新增上述九个名字，保留 nixpkgs 原有软件包；消费端需允许微信、QQ 和百度网盘的 unfree 许可，使用不同依赖时需要重新构建。
-百度网盘仍依赖 GTK2，flake 将其弃用标记降为警告；使用 overlay 安装百度网盘时需设置 `nixpkgs.config.problems.handlers."gtk+".broken = "warn"`。Paseo 使用官方 deb，不再携带 AppImage 中的 GTK2 兼容库。
+也导出 `overlays.default`，供需要使用自己的 nixpkgs 或覆盖依赖的配置使用。overlay 新增上述十个名字，保留 nixpkgs 原有软件包；消费端需允许微信、QQ 和官方百度网盘客户端的 unfree 许可，使用不同依赖时需要重新构建。
+官方百度网盘客户端仍依赖 GTK2，flake 将其弃用标记降为警告；使用 overlay 安装时需设置 `nixpkgs.config.problems.handlers."gtk+".broken = "warn"`。Paseo 使用官方 deb，不再携带 AppImage 中的 GTK2 兼容库。
+
+运行 `baidupcs-rust` 后，在 `http://127.0.0.1:18888` 打开 Web 界面；配置、登录数据和默认下载目录保存在 `$XDG_DATA_HOME/baidupcs-rust`（默认 `~/.local/share/baidupcs-rust`）。它不使用 jail.nix 沙箱，与 `baidunetdisk-jailed` 可同时安装和使用。
 
 本地修改包定义后，在 `nix-config` 中执行 `nix flake update nix-packages`，刷新本地 input 的锁定快照。
 
