@@ -60,6 +60,11 @@ export PATH="$test_root/bin:$PATH"
 selector=./scripts/select-builds.sh
 
 "$selector" "$baseline" | jq -e '.matrix == []' >/dev/null
+CACHE_BACKFILL=true "$selector" "$baseline" | jq -e '
+  (.matrix | length) == 2 and (.matrix | all(.policy == false)) and
+  (.matrix | any(.attr == "qq-jailed" and (.outPaths | length) == 2))
+' >/dev/null
+CACHE_BACKFILL=false "$selector" "$baseline" | jq -e '.matrix == []' >/dev/null
 jq '."qq-jailed" = "notBuilt"' cache.json > updated.json
 mv updated.json cache.json
 "$selector" "$baseline" | jq -e '
@@ -68,7 +73,7 @@ mv updated.json cache.json
   (.matrix[0].outPaths | length == 2 and any(endswith("-qq-jailed-dev"))) and .matrix[0].policy == false
 ' >/dev/null
 
-# Locally built updates still need a build job to publish their outputs to Cachix.
+# Locally built updates still need a build job to publish their outputs.
 jq '."qq-jailed" = "local"' cache.json > updated.json
 mv updated.json cache.json
 "$selector" "$baseline" | jq -e '.matrix | length == 1' >/dev/null

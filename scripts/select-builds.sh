@@ -43,7 +43,8 @@ else
 fi
 
 # Check actual cache availability, so evicted or previously failed builds are retried.
-jq --slurp --arg previous_policy "$previous_policy" '
+jq --slurp --arg previous_policy "$previous_policy" \
+  --argjson cache_backfill "${CACHE_BACKFILL:-false}" '
   if length == 0 then error("No derivations were evaluated")
   elif any(.error != null) then error(map(select(.error != null)) | tojson)
   elif any(.system != "x86_64-linux" or
@@ -53,7 +54,7 @@ jq --slurp --arg previous_policy "$previous_policy" '
   {
     matrix: map(
       select(if .attr == "jailed-desktop-policy" then .drvPath != $previous_policy
-        else .cacheStatus != "cached" end) |
+        else $cache_backfill or .cacheStatus != "cached" end) |
       {
         attr,
         installable: (".#checks.x86_64-linux." + .attr),
