@@ -74,8 +74,8 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 
 三个包通过 [~alexdavid/jail.nix](https://git.sr.ht/~alexdavid/jail.nix) 包装，适用于 Wayland 会话：
 
-- `~/Documents` 只读；其余宿主用户目录不挂载，包括 Downloads、SSH 密钥和浏览器配置。应用内也不能通过文件选择门户读取其他位置。
-- 每个应用的可写 HOME 独立保存在 `~/.local/share/jail.nix/home/<包名>/`，登录状态、缓存、接收文件和网盘下载保存在这里。Documents 不能作为下载目标，可选择应用私有 HOME 下的目录。
+- `~/Documents` 只读，沙箱内的 `Documents/jail` 为空且只读，避免各应用读取彼此的私有数据；其余宿主用户目录不挂载，包括 Downloads、SSH 密钥和浏览器配置。应用内也不能通过文件选择门户读取其他位置。
+- 每个应用的可写 HOME 独立保存在 `~/Documents/jail/<包名>/`，首次启动时自动创建，登录状态、缓存、接收文件和网盘下载保存在这里。应用通过自己的 HOME 读写这些数据；共享 Documents 不能作为下载目标。旧的 `~/.local/share/jail.nix/home/<包名>/` 不自动迁移或删除。
 - 允许网络、GPU、PulseAudio / PipeWire 音频播放和麦克风录音、`/dev/video*` 摄像头设备、Wayland 及剪贴板；旧 X11 客户端使用沙箱内部独立的 xwayland-satellite。
 - 微信使用 nixpkgs 的 deb 打包和原生 Wayland 输入支持，由上游启动脚本选择 Wayland 和 text-input-v3；沙箱不设置微信的旧式输入法变量和 `QT_QPA_PLATFORM`。
 - QQ 和百度网盘按 Flathub 的包级配置，仅转发宿主已设置的 `QT_IM_MODULE`、`GTK_IM_MODULE` 和 `XMODIFIERS`，不强制指定输入法。QQ 使用 nixpkgs 已提供的 Wayland IME 和 text-input-v3 参数；百度网盘通过沙箱内的 Xwayland 运行。

@@ -15,8 +15,11 @@
     else package;
   permissions = with jail.combinators; [
     network
-    (persist-home pname)
+    (add-runtime ''install -d -m 700 "$HOME/Documents/jail/${pname}"'')
+    (rw-bind (noescape ''"$HOME/Documents/jail/${pname}"'') (noescape ''"$HOME"''))
     (readonly (noescape ''"$HOME/Documents"''))
+    # Keep private homes hidden through the shared Documents mount.
+    (ro-bind "${pkgs.emptyDirectory}" (noescape ''"$HOME/Documents/jail"''))
     (unsafe-add-raw-args "--chdir ~")
     (unsafe-add-raw-args ''--symlink "$HOME/.machine-id" /etc/machine-id'')
     wayland

@@ -19,6 +19,11 @@
       test ! -e "$HOME/.ssh/private"
       test ! -e "$HOME/Downloads/private"
       test ! -e "$HOME/Documents/escape/private"
+      test ! -e "$HOME/Documents/jail/other-app/private"
+      if touch "$HOME/Documents/jail/forbidden" 2>/dev/null; then
+        echo "Private homes must be hidden through Documents" >&2
+        exit 1
+      fi
       if touch "$HOME/Documents/forbidden" 2>/dev/null; then
         echo "Documents must be read-only" >&2
         exit 1
@@ -120,6 +125,8 @@ in
       mkdir -p "$test_root/home/"{Documents,.ssh,Downloads} "$test_root/runtime"
       chmod 700 "$test_root/runtime"
       printf documents > "$test_root/home/Documents/readable"
+      mkdir -p "$test_root/home/Documents/jail/other-app"
+      printf secret > "$test_root/home/Documents/jail/other-app/private"
       touch "$test_root/home/.ssh/private" "$test_root/home/Downloads/private"
       ln -s ../.ssh "$test_root/home/Documents/escape"
       export XDG_RUNTIME_DIR="$test_root/runtime" WAYLAND_DISPLAY=wayland-test XDG_SESSION_TYPE=wayland
@@ -168,8 +175,9 @@ in
       env -u TERM QT_IM_MODULE= GTK_IM_MODULE= XMODIFIERS= SDL_IM_MODULE= GLFW_IM_MODULE= \
         HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe \
         ime unset unset unset unset unset unset
-      test -f "$test_root/home/.local/share/jail.nix/home/jail-policy-probe/persistent"
-      test -f "$test_root/home/.local/share/jail.nix/home/jail-policy-fhs-probe/persistent"
+      test -f "$test_root/home/Documents/jail/jail-policy-probe/persistent"
+      test -f "$test_root/home/Documents/jail/jail-policy-fhs-probe/persistent"
+      test ! -e "$test_root/home/.local/share/jail.nix/home"
       test ! -e "$test_root/home/persistent"
       test ! -e "$test_root/home/Documents/forbidden"
       grep -Fx 'Exec=${wrapped}/bin/jail-policy-probe %U' \
