@@ -124,6 +124,8 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 
 先保存 Secret，再保存 Variable。`ATTIC_PUBLIC_KEY` 非空即切换到 Attic；API 地址 `https://cache.455500.xyz/` 和缓存名已固定在工作流中。只有默认分支上的成功包上传，PR 只读且不接收写令牌。启用后缺少 token 或上传失败会使对应 job 失败。
 
+上传步骤会先显示目标缓存和 output 路径，随后每 30 秒报告 `attic push` 仍在运行及已耗时，并保留每个路径的成功/失败日志；结束时显示总耗时。定时提示表示命令仍在执行，不能据此判断字节传输进度或服务端处理进度。
+
 首次迁移先保留原 `CACHIX_CACHE_NAME` / `CACHIX_AUTH_TOKEN`，在 **Actions → Packages → Run workflow** 选择默认分支，勾选 `cache_backfill`、不勾选 `update`。它会包含当前全部包的所有 output，读取旧 Cachix 以复用已有结果，再以 `attic push --stdin --jobs 1` 上传到 Attic；官方签名依赖由 Attic 默认过滤，沙箱测试工具不上传。缺失的包在 runner 上构建，无需在 VPS 上搬运 Nix store。该操作覆盖当前版本，需要保留的历史版本需另行迁移。
 
 普通运行启用 Attic 后不再读取或写入 Cachix；尚未设置 `ATTIC_PUBLIC_KEY` 时沿用原 Cachix 流程。回填、实际下载及备份恢复验证完成后可删除旧 Cachix 变量与 Secret。完整部署和轮换步骤见 [Dokploy-services/attic](https://github.com/Invisibox/Dokploy-services/tree/main/attic)。服务器默认生成的 CI token 有效期为 365 天；到期前递增 Dokploy 的 `ATTIC_CI_TOKEN_REVISION`、重新部署并更新 GitHub Secret。
