@@ -103,13 +103,13 @@ Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认
 Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新，百度网盘暂时手动维护版本和哈希。
 Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届时需调整补丁后再更新。
 
-## GitHub Actions 与 Cachix
+## GitHub Actions 与 Attic
 
-参考[自动化 NUR](https://blog.starryreverie.cc/posts/2026/automate-nur/)，`.github/workflows/packages.yml` 分为求值、并行构建和提交更新三个阶段，仅运行于 `x86_64-linux` 的 `ubuntu-latest` runner。
+参考[自动化 NUR](https://blog.starryreverie.cc/posts/2026/automate-nur/)，`.github/workflows/packages.yml` 分为求值、构建和提交更新三个阶段，仅运行于 `x86_64-linux` 的 `ubuntu-latest` runner。长期公开缓存使用 [Attic](https://cache.455500.xyz/)，缓存名为 `nix-packages`。
 
-求值和构建阶段均启用 [Magic Nix Cache](https://github.com/DeterminateSystems/magic-nix-cache-action)，通过 GitHub Actions 缓存复用 Nix 构建结果，无需额外密钥。该缓存仅供 CI 使用；消费端仍通过下述 Cachix 配置获取构建结果。
+构建阶段继续启用 [Magic Nix Cache](https://github.com/DeterminateSystems/magic-nix-cache-action)，无需额外密钥。接入 Attic 后，求值阶段仅查询公开缓存，避免包仅命中 CI 内部缓存就跳过发布；构建阶段仍可从 Magic Nix Cache 下载后上传到 Attic。尚未配置 Attic 时，保持原求值缓存行为。
 
-求值阶段检查格式、脚本回归和 flake，并通过锁定 nixpkgs 提供的 `nix-eval-jobs --check-cache-status` 并行求值。配置 Cachix 后先读取该缓存，`scripts/select-builds.sh` 为远端缓存缺失的每个包生成一个 matrix job；已由更新脚本在本地构建的包也会进入构建阶段，以便上传。缓存被清理或上次构建失败后，即使 Git 内容没有变化也会重试；全部命中缓存时跳过构建。每个 job 独立完成，单包失败不取消其他包。
+求值阶段检查格式、脚本回归和 flake，并通过锁定 nixpkgs 提供的 `nix-eval-jobs --check-cache-status` 并行求值。`scripts/select-builds.sh` 为公开缓存缺失的每个包生成一个 matrix job；已由更新脚本在本地构建的包也进入构建阶段，以便上传。缓存被清理或上次构建失败后，即使 Git 内容没有变化也会重试；全部命中时跳过构建。每个 job 独立完成，单包失败不取消其他包。目前 matrix 串行运行，每次上传也限制为一路，适配 1.5 GB 内存 VPS。
 
 沙箱检查工具仍按 derivation 变化运行权限测试：push 对比推送前的提交，PR 对比与目标分支的共同祖先，定时更新对比更新前的 HEAD，手动不更新时对比上一个提交。缺少基线或基线无法求值时运行权限测试。测试验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离；使用模拟设备、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。
 
@@ -119,12 +119,24 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 
 | 类型 | 名称 | 内容 |
 | --- | --- | --- |
-| Variable | `CACHIX_CACHE_NAME` | 你的 Cachix 缓存名 |
-| Secret | `CACHIX_AUTH_TOKEN` | 对该缓存有写入权限的 token |
+| Secret | `ATTIC_TOKEN` | Dokploy attic 容器内 `/var/lib/atticd/credentials/github-actions.token` 的完整内容 |
+| Variable | `ATTIC_PUBLIC_KEY` | `https://cache.455500.xyz/nix-packages/attic-cache-info` 中的完整 `public_key` |
 
-未设置缓存名时，CI 仍正常构建。启用写入时，需同时设置缓存名和 token；只有默认分支上的成功构建会上传，PR 只读取公开缓存。
-工作流关闭 Cachix 自动推送，仅对成功包的所有 output 显式调用 `cachix push`，上传其运行时闭包，以控制 5 GiB 免费存储占用；沙箱测试工具不上传。
+先保存 Secret，再保存 Variable。`ATTIC_PUBLIC_KEY` 非空即切换到 Attic；API 地址 `https://cache.455500.xyz/` 和缓存名已固定在工作流中。只有默认分支上的成功包上传，PR 只读且不接收写令牌。启用后缺少 token 或上传失败会使对应 job 失败。
+
+首次迁移先保留原 `CACHIX_CACHE_NAME` / `CACHIX_AUTH_TOKEN`，在 **Actions → Packages → Run workflow** 选择默认分支，勾选 `cache_backfill`、不勾选 `update`。它会包含当前全部包的所有 output，读取旧 Cachix 以复用已有结果，再以 `attic push --stdin --jobs 1` 上传到 Attic；官方签名依赖由 Attic 默认过滤，沙箱测试工具不上传。缺失的包在 runner 上构建，无需在 VPS 上搬运 Nix store。该操作覆盖当前版本，需要保留的历史版本需另行迁移。
+
+普通运行启用 Attic 后不再读取或写入 Cachix；尚未设置 `ATTIC_PUBLIC_KEY` 时沿用原 Cachix 流程。回填、实际下载及备份恢复验证完成后可删除旧 Cachix 变量与 Secret。完整部署和轮换步骤见 [Dokploy-services/attic](https://github.com/Invisibox/Dokploy-services/tree/main/attic)。服务器默认生成的 CI token 有效期为 365 天；到期前递增 Dokploy 的 `ATTIC_CI_TOKEN_REVISION`、重新部署并更新 GitHub Secret。
+
 同时允许仓库 Actions 写入内容，以便定时任务提交已验证的版本更新。若主分支启用了禁止直接推送的保护规则，需允许该工作流更新，或改为手动合并更新。
 
-消费端还需要配置 Cachix 提供的 substituter URL 和 public key，例如使用 `cachix use <cache-name>`，或在 NixOS 的 `nix.settings` 中声明它们。
-本仓库不保存 token，也不预设缓存名、公钥或 GitHub remote。
+NixOS 消费端保留官方缓存，并添加：
+
+```nix
+nix.settings = {
+  extra-substituters = [ "https://cache.455500.xyz/nix-packages" ];
+  extra-trusted-public-keys = [ "nix-packages:替换为实际公钥" ];
+};
+```
+
+公钥可用 `curl -fsS https://cache.455500.xyz/nix-packages/attic-cache-info | jq -r .public_key` 取得。普通消费端不需要 token；仓库不保存私钥或令牌。`cachix/install-nix-action` 仅负责安装 Nix，与选择哪个二进制缓存无关。
