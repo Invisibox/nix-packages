@@ -19,7 +19,6 @@
     gdk-pixbuf
     glib
     gtk3
-    gtk2
     dbus-glib
     libdbusmenu
     libappindicator-gtk3
@@ -99,8 +98,8 @@
   };
 
   src = pkgs.fetchurl {
-    url = "https://github.com/getpaseo/paseo/releases/download/v${version}/Paseo-x86_64.AppImage";
-    hash = "sha256-evHzZqIKGhY/pbV3WSNN9I4pkTAScjUCaKDHkkPDqYk=";
+    url = "https://github.com/getpaseo/paseo/releases/download/v${version}/Paseo-${version}-amd64.deb";
+    hash = "sha256-tM5l/Vj1LW8GGppNKyVC34vlZerC71n3qiwfRIxASIM=";
   };
 
   package = pkgs.stdenv.mkDerivation {
@@ -108,12 +107,9 @@
 
     nativeBuildInputs = [
       pkgs.autoPatchelfHook
-      pkgs.imagemagick
-      pkgs.squashfsTools
+      pkgs.dpkg
       (pkgs.buildPackages.wrapGAppsHook3.override {makeWrapper = pkgs.buildPackages.makeShellWrapper;})
     ];
-
-    autoPatchelfIgnoreMissingDeps = ["libdbusmenu-gtk.so.4"];
 
     buildInputs =
       deps
@@ -124,28 +120,12 @@
 
     dontConfigure = true;
     dontBuild = true;
+    doInstallCheck = true;
 
     unpackPhase = ''
       runHook preUnpack
 
-      # Locate the squashfs image embedded in the AppImage and extract it.
-      cp "$src" appimage
-      chmod +w appimage
-      offset=""
-      for candidate in $(grep -abo hsqs appimage | cut -d: -f1); do
-        if unsquashfs -s -o "$candidate" appimage >/dev/null 2>&1; then
-          offset="$candidate"
-          break
-        fi
-      done
-
-      if [[ -z "$offset" ]]; then
-        echo "unable to locate squashfs filesystem in AppImage" >&2
-        exit 1
-      fi
-
-      unsquashfs -no-progress -d AppDir -o "$offset" appimage
-      rm appimage
+      dpkg-deb -x "$src" .
 
       runHook postUnpack
     '';
@@ -153,33 +133,33 @@
     installPhase = ''
       runHook preInstall
 
-      mkdir -p "$out/bin" "$out/lib" "$out/opt" "$out/share"
-      cp -R AppDir/* "$out/opt/"
+      mkdir -p "$out/bin"
+      cp -R opt "$out/"
+      cp -R usr/share "$out/share"
 
-      icon_src="$out/opt/Paseo.png"
-      for icon_size in 128 256 512; do
-        install -d "$out/share/icons/hicolor/''${icon_size}x''${icon_size}/apps"
-        magick "$icon_src" -resize "''${icon_size}x''${icon_size}" \
-          "$out/share/icons/hicolor/''${icon_size}x''${icon_size}/apps/paseo-desktop.png"
-      done
-
-      makeWrapper "$out/opt/Paseo" "$out/bin/paseo-desktop" \
+      makeWrapper "$out/opt/Paseo/Paseo" "$out/bin/paseo-desktop" \
         --unset ELECTRON_RUN_AS_NODE \
         --prefix XDG_DATA_DIRS : ${pkgs.xdg-utils}/share \
         --prefix PATH : ${lib.makeBinPath [xdgUtilsShim pkgs.xdg-utils]}
 
-      install -Dm644 "$out/opt/Paseo.desktop" "$out/share/applications/paseo-desktop.desktop"
+      mv "$out/share/applications/Paseo.desktop" "$out/share/applications/paseo-desktop.desktop"
       substituteInPlace "$out/share/applications/paseo-desktop.desktop" \
-        --replace-fail "Exec=AppRun --class=Paseo %U" "Exec=paseo-desktop %U" \
-        --replace-fail "Icon=Paseo" "Icon=paseo-desktop"
+        --replace-fail "Exec=/opt/Paseo/Paseo" "Exec=$out/bin/paseo-desktop --class=Paseo"
 
       runHook postInstall
     '';
 
     preFixup = ''
       gappsWrapperArgs+=(
-        --prefix LD_LIBRARY_PATH : ${rpath}:$out/opt:$out/lib
+        --prefix LD_LIBRARY_PATH : ${rpath}:$out/opt/Paseo
       )
+    '';
+
+    installCheckPhase = ''
+      runHook preInstallCheck
+      ELECTRON_RUN_AS_NODE=1 "$out/opt/Paseo/Paseo.bin" \
+        -e 'require("node:assert").ok(process.versions.electron)'
+      runHook postInstallCheck
     '';
 
     passthru.updateScript = pkgs.callPackage ../../lib/update-script.nix {

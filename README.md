@@ -5,7 +5,7 @@
 | 输出 | 初始版本 | 定制内容 |
 | --- | --- | --- |
 | `brave-origin-beta` | `1.99.48` | 官方 deb 重新打包，ELF 修正、启动包装、桌面入口 |
-| `paseo-desktop` | `0.13.1` | 官方 AppImage 提取、动态链接修正、XDG 协议处理 |
+| `paseo-desktop` | `0.13.1` | 官方 deb 重新打包、动态链接修正、XDG 协议处理 |
 | `oxideterm` | `2.2.6` | 官方 deb 重新打包，CLI / GUI、WebKit 运行环境 |
 | `neiro` | `0.2.0` / `2c48e7e` | Rust 源码构建，PipeWire / WirePlumber / ffmpeg 包装 |
 | `gamescope-patched` | 跟随 nixpkgs | `-fno-fast-math` 和 Gamescope 退出修复补丁 |
@@ -62,7 +62,7 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 ```
 
 也导出 `overlays.default`，供需要使用自己的 nixpkgs 或覆盖依赖的配置使用。overlay 新增上述九个名字，保留 nixpkgs 原有软件包；消费端需允许微信、QQ 和百度网盘的 unfree 许可，使用不同依赖时需要重新构建。
-Paseo 和百度网盘仍依赖 GTK2，flake 将其弃用标记降为警告；使用 overlay 时需设置 `nixpkgs.config.problems.handlers."gtk+".broken = "warn"`。
+百度网盘仍依赖 GTK2，flake 将其弃用标记降为警告；使用 overlay 安装百度网盘时需设置 `nixpkgs.config.problems.handlers."gtk+".broken = "warn"`。Paseo 使用官方 deb，不再携带 AppImage 中的 GTK2 兼容库。
 
 本地修改包定义后，在 `nix-config` 中执行 `nix flake update nix-packages`，刷新本地 input 的锁定快照。
 
