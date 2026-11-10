@@ -107,7 +107,7 @@ Paseo 和 OxideTerm 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通�
 Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
 WPS、Bottles 主程序、Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新，百度网盘暂时手动维护版本和哈希。
 Bottles 的更新器另外跟踪 WineBridge 最新发布，以及 Bottles 组件索引中的稳定版运行库、DXVK、VKD3D、NVAPI、LatencyFleX、Caffe 和 Soda；全部成功后才写回包定义。所有组件和带自定义显示名的 Proton GE 均放入 `bottles` 的输出闭包，CI 构建和上传会一并处理。消费端可通过 `bottles.winebridge`、`bottles.runtimeComponent`、`bottles.caffeRunner` 等 passthru 获取组件，用户数据目录和 Proton 链接由系统配置管理。
-Pilinara 跟踪 GitHub 最新稳定版，按实际发布资产查找 Linux amd64 tar.gz，分别记录发布标签和下载 URL，适配标签 `2.6.2` 与文件名 `2.2.0+6232` 不一致的情况。优先使用 GitHub SHA-256，缺失时下载计算；下载或解析失败时保留原包定义。发布包中的 JNI 库额外需要 headless Java 运行库。该包使用官方二进制，不包含 AUR 源码版单独添加的 Dart 补丁。
+Pilinara 跟踪 GitHub 最新稳定版，按实际发布资产查找 Linux amd64 tar.gz，分别记录发布标签和下载 URL，适配标签 `2.6.2` 与文件名 `2.2.0+6232` 不一致的情况。优先使用 GitHub SHA-256，缺失时下载计算；下载或解析失败时保留原包定义。打包时移除 Linux 不使用的 Android JNI 库 `libdartjni.so`，避免引入 headless Java 运行库。该包使用官方二进制，不包含 AUR 源码版单独添加的 Dart 补丁。
 WPS 的字体与输入法可通过 `wps-office.override { windowsFontsPackage = ...; qtImModule = "fcitx"; }` 调整；默认字体来自锁定的 chinese-fonts-overlay。
 Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届时需调整补丁后再更新。
 

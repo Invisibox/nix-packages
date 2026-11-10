@@ -27,7 +27,6 @@ in
       webkitgtk_4_1
       mpv-unwrapped
       libGL
-      jre_headless
     ];
     runtimeDependencies = map lib.getLib [pkgs.mpv-unwrapped pkgs.webkitgtk_4_1];
 
@@ -40,6 +39,8 @@ in
 
       install -Dm755 pilinara "$out/libexec/pilinara/pilinara"
       cp -a lib data "$out/libexec/pilinara/"
+      # JNI is only used by Android; the Linux bundle never loads it.
+      rm "$out/libexec/pilinara/lib/libdartjni.so"
       mkdir -p "$out/bin"
       ln -s "$out/libexec/pilinara/pilinara" "$out/bin/pilinara"
       install -Dm644 data/flutter_assets/assets/images/logo/logo.png \
@@ -49,8 +50,6 @@ in
     '';
 
     preFixup = ''
-      # The release bundles libdartjni.so, which links against the JVM.
-      addAutoPatchelfSearchPath ${pkgs.jre_headless}/lib/openjdk/lib/server
       gappsWrapperArgs+=(
         --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [pkgs.mpv-unwrapped pkgs.webkitgtk_4_1]}:$out/libexec/pilinara/lib"
       )
