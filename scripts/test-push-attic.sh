@@ -62,7 +62,7 @@ for mode in success failure cancel; do
   if grep -q "$ATTIC_TOKEN" "$test_root/$mode.log"; then
     echo 'FAIL: token leaked'; exit 1
   fi
-  printf '%s\n' push --jobs 1 ci:test-cache /nix/store/test-first /nix/store/test-second > "$test_root/expected-args"
+  printf '%s\n' push --jobs 2 ci:test-cache /nix/store/test-first /nix/store/test-second > "$test_root/expected-args"
   cmp "$test_root/expected-args" "$test_root/args"
   if [[ "$mode" == success ]]; then
     grep -q 'Attic push completed in' "$test_root/$mode.log"
@@ -81,8 +81,8 @@ for mode in success failure cancel; do
   done < "$test_root/timers"
 done
 
-ATTIC_TEST_MODE=success ATTIC_PUSH_JOBS=2 "$repo_root/scripts/push-attic.sh" > "$test_root/parallel.log" 2>&1
-printf '%s\n' push --jobs 2 ci:test-cache /nix/store/test-first /nix/store/test-second > "$test_root/expected-args"
+ATTIC_TEST_MODE=success ATTIC_PUSH_JOBS=1 "$repo_root/scripts/push-attic.sh" > "$test_root/serial.log" 2>&1
+printf '%s\n' push --jobs 1 ci:test-cache /nix/store/test-first /nix/store/test-second > "$test_root/expected-args"
 cmp "$test_root/expected-args" "$test_root/args"
 for jobs in 0 3 invalid; do
   rm -f "$test_root/args"

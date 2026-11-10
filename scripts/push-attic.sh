@@ -4,7 +4,7 @@ set -euo pipefail
 : "${ATTIC_SERVER:?Set ATTIC_SERVER}"
 : "${ATTIC_CACHE:?Set ATTIC_CACHE}"
 : "${ATTIC_TOKEN:?Set the ATTIC_TOKEN repository secret}"
-push_jobs=${ATTIC_PUSH_JOBS:-1}
+push_jobs=${ATTIC_PUSH_JOBS:-2}
 if [[ ! "$push_jobs" =~ ^[1-2]$ ]]; then
   echo 'ATTIC_PUSH_JOBS must be 1 or 2.' >&2
   exit 1
