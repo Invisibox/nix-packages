@@ -4,6 +4,7 @@
   bash,
   coreutils,
   curl,
+  gawk,
   git,
   gnused,
   jq,
@@ -12,7 +13,7 @@
 }:
 writeShellApplication {
   name = lib.removeSuffix ".sh" script;
-  runtimeInputs = [bash coreutils curl git gnused jq nix];
+  runtimeInputs = [bash coreutils curl gawk git gnused jq nix];
   text = ''
     cd "$(git rev-parse --show-toplevel)"
     exec bash "./scripts/${script}" "$@"
