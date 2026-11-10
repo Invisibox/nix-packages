@@ -14,6 +14,9 @@
 | `qq-jailed` | 跟随 nixpkgs `qq` | 同上 |
 | `baidunetdisk-jailed` | `8.7.0` | 官方 deb + FHS 运行环境，使用相同沙箱 |
 | `baidupcs-rust` | `2.4.0` | BaiduPCS-Rust 官方 Linux x86_64 发布包，直接运行本机 Web 服务 |
+| `wps-office` | 跟随 nixpkgs `wpsoffice-cn` | 独立 Windows 字体、Fcitx、裸 Alt 过滤、退出时清理云服务子进程 |
+| `bottles` | 跟随 nixpkgs | 移除警告弹窗、OpenLDAP 测试修正，包含 WineBridge、运行库、DXVK、VKD3D、NVAPI、LatencyFleX、Caffe/Soda 和 Proton GE |
+| `pilinara` | `2.6.2` | 参考 [AUR pilinara-bin](https://aur.archlinux.org/packages/pilinara-bin) 的官方 Linux 发布包布局、依赖和桌面入口，修正 ELF 与 Flutter 动态库路径 |
 
 Nautilus 输出是 `nautilus-env` 组合环境。使用它时，将
 `NAUTILUS_4_EXTENSION_DIR` 设置为 `${package}/lib/nautilus/extensions-4`；终端选择等 dconf 设置由消费端配置。
@@ -30,15 +33,17 @@ nix build '.#gamescope-patched'
 nix build '.#nautilus-with-extensions'
 nix build '.#wechat-jailed' '.#qq-jailed' '.#baidunetdisk-jailed'
 nix build '.#baidupcs-rust'
+nix build '.#wps-office' '.#bottles' '.#pilinara'
 nix fmt -- --check .
 ./scripts/test-update-neiro.sh
 ./scripts/test-update-all.sh
+./scripts/test-package-updates.sh
 ./scripts/test-select-builds.sh
 nix flake check --print-build-logs
 nix run '.#checks.x86_64-linux.jailed-desktop-policy'
 ```
 
-`nix flake check` 会构建全部十个包和沙箱检查工具，Neiro 保留上游测试。沙箱检查需在构建沙箱外运行上面的 `nix run`，会启动临时的 headless Weston 和测试 D-Bus，不访问真实应用数据或打开浏览器。首次使用 Git flake 前，需将文件加入 Git：
+`nix flake check` 会构建全部十三个包和沙箱检查工具，Neiro 保留上游测试。沙箱检查需在构建沙箱外运行上面的 `nix run`，会启动临时的 headless Weston 和测试 D-Bus，不访问真实应用数据或打开浏览器。首次使用 Git flake 前，需将文件加入 Git：
 
 ```sh
 git add .
@@ -63,7 +68,7 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 }
 ```
 
-也导出 `overlays.default`，供需要使用自己的 nixpkgs 或覆盖依赖的配置使用。overlay 新增上述十个名字，保留 nixpkgs 原有软件包；消费端需允许微信、QQ 和官方百度网盘客户端的 unfree 许可，使用不同依赖时需要重新构建。
+也导出 `overlays.default`，供需要使用自己的 nixpkgs 或覆盖依赖的配置使用。overlay 导出同样的十三个名字，其中 `bottles` 为包含组件的定制版本；消费端需允许微信、QQ 和官方百度网盘客户端的 unfree 许可，使用不同依赖时需要重新构建。
 官方百度网盘客户端仍依赖 GTK2，flake 将其弃用标记降为警告；使用 overlay 安装时需设置 `nixpkgs.config.problems.handlers."gtk+".broken = "warn"`。Paseo 使用官方 deb，不再携带 AppImage 中的 GTK2 兼容库。
 
 运行 `baidupcs-rust` 后，在 `http://127.0.0.1:18888` 打开 Web 界面；配置、登录数据和默认下载目录保存在 `$XDG_DATA_HOME/baidupcs-rust`（默认 `~/.local/share/baidupcs-rust`）。它不使用 jail.nix 沙箱，与 `baidunetdisk-jailed` 可同时安装和使用。
@@ -88,19 +93,22 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 ## 更新版本
 
 ```sh
-# 更新全部 flake inputs（nixpkgs、jail-nix）：
+# 更新全部 flake inputs（nixpkgs、jail-nix、chinese-fonts-overlay）：
 nix flake update
-# 更新独立打包的四个应用：
+# 更新所有导出 updateScript 的应用和组件：
 ./scripts/update-all.sh
 # 或仅更新一个应用：
 nix run '.#neiro.updateScript'
 nix flake check --print-build-logs
 ```
 
-四个应用通过 `passthru.updateScript` 导出更新器，可在仓库内执行 `nix run '.#<包名>.updateScript'`；运行环境由 Nix 提供，工作目录自动切到 Git 仓库根目录。`update-all.sh` 自动发现这些更新器，逐个执行并汇总失败。原有 `scripts/update-*.sh` 仍可直接调用，GitHub API 请求支持 `GITHUB_TOKEN`。
+六个应用通过 `passthru.updateScript` 导出更新器，可在仓库内执行 `nix run '.#<包名>.updateScript'`；运行环境由 Nix 提供，工作目录自动切到 Git 仓库根目录。`update-all.sh` 自动发现这些更新器，逐个执行并汇总失败。原有 `scripts/update-*.sh` 仍可直接调用，GitHub API 请求支持 `GITHUB_TOKEN`。
 Paseo 和 OxideTerm 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新源码哈希，无需额外安装工具。
 Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
-Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新，百度网盘暂时手动维护版本和哈希。
+WPS、Bottles 主程序、Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新，百度网盘暂时手动维护版本和哈希。
+Bottles 的更新器另外跟踪 WineBridge 最新发布，以及 Bottles 组件索引中的稳定版运行库、DXVK、VKD3D、NVAPI、LatencyFleX、Caffe 和 Soda；全部成功后才写回包定义。所有组件和带自定义显示名的 Proton GE 均放入 `bottles` 的输出闭包，CI 构建和上传会一并处理。消费端可通过 `bottles.winebridge`、`bottles.runtimeComponent`、`bottles.caffeRunner` 等 passthru 获取组件，用户数据目录和 Proton 链接由系统配置管理。
+Pilinara 跟踪 GitHub 最新稳定版，按实际发布资产查找 Linux amd64 tar.gz，分别记录发布标签和下载 URL，适配标签 `2.6.2` 与文件名 `2.2.0+6232` 不一致的情况。优先使用 GitHub SHA-256，缺失时下载计算；下载或解析失败时保留原包定义。发布包中的 JNI 库额外需要 headless Java 运行库。该包使用官方二进制，不包含 AUR 源码版单独添加的 Dart 补丁。
+WPS 的字体与输入法可通过 `wps-office.override { windowsFontsPackage = ...; qtImModule = "fcitx"; }` 调整；默认字体来自锁定的 chinese-fonts-overlay。
 Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届时需调整补丁后再更新。
 
 ## GitHub Actions 与 Attic
@@ -113,7 +121,7 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 
 沙箱检查工具仍按 derivation 变化运行权限测试：push 对比推送前的提交，PR 对比与目标分支的共同祖先，定时更新对比更新前的 HEAD，手动不更新时对比上一个提交。缺少基线或基线无法求值时运行权限测试。测试验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离；使用模拟设备、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。
 
-每天 UTC 03:17（北京时间 11:17）更新 nixpkgs、jail-nix 和四个自定义应用；手动运行可勾选 `update`。求值阶段将更新后的源码打包，构建和提交阶段使用同一份快照。所有检查和构建通过后，由独立 job 提交版本更新；仅此 job 拥有仓库写权限。公开仓库适用 GitHub Actions 免费额度。
+每天 UTC 03:17（北京时间 11:17）更新 flake inputs 和六个自定义应用的更新器（含 Pilinara 与 Bottles 组件）；手动运行可勾选 `update`。求值阶段将更新后的源码打包，构建和提交阶段使用同一份快照。所有检查和构建通过后，由独立 job 提交版本更新；仅此 job 拥有仓库写权限。公开仓库适用 GitHub Actions 免费额度。
 
 发布后，在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 设置：
 
