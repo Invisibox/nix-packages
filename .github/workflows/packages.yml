@@ -74,6 +74,7 @@ jobs:
           for script in scripts/*.sh; do bash -n "$script"; done
           ./scripts/test-update-neiro.sh
           ./scripts/test-update-all.sh
+          ./scripts/test-package-updates.sh
           ./scripts/test-select-builds.sh
           ./scripts/test-push-attic.sh
           nix flake check --no-build
