@@ -3,11 +3,16 @@
 
   inputs.nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.zst";
   inputs.jail-nix.url = "sourcehut:~alexdavid/jail.nix";
+  inputs.chinese-fonts-overlay = {
+    url = "github:brsvh/chinese-fonts-overlay";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
 
   outputs = {
     self,
     nixpkgs,
     jail-nix,
+    chinese-fonts-overlay,
   }: let
     system = "x86_64-linux";
     pkgs = import nixpkgs {
@@ -19,7 +24,7 @@
     };
     packageNames = builtins.attrNames (self.overlays.default pkgs pkgs);
   in {
-    overlays.default = import ./overlay.nix {inherit jail-nix;};
+    overlays.default = import ./overlay.nix {inherit jail-nix chinese-fonts-overlay;};
     packages.${system} = nixpkgs.lib.genAttrs packageNames (name: pkgs.${name});
     checks.${system} =
       self.packages.${system}

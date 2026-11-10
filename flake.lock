@@ -1,5 +1,25 @@
 {
   "nodes": {
+    "chinese-fonts-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793847371,
+        "narHash": "sha256-iMFyl4uYdkmxSXdksvxO4MM7Vf5UMbxUjByWn7kI2JY=",
+        "owner": "brsvh",
+        "repo": "chinese-fonts-overlay",
+        "rev": "a14d554299d1c8a5f4329a215d4d6217d99bf307",
+        "type": "github"
+      },
+      "original": {
+        "owner": "brsvh",
+        "repo": "chinese-fonts-overlay",
+        "type": "github"
+      }
+    },
     "jail-nix": {
       "locked": {
         "lastModified": 1788928033,
@@ -30,6 +50,7 @@
     },
     "root": {
       "inputs": {
+        "chinese-fonts-overlay": "chinese-fonts-overlay",
         "jail-nix": "jail-nix",
         "nixpkgs": "nixpkgs"
       }
