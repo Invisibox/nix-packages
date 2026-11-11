@@ -3,11 +3,11 @@
   pkgs,
 }: let
   pname = "oxideterm";
-  version = "2.3.1";
+  version = "2.3.2";
 
   src = pkgs.fetchurl {
     url = "https://github.com/AnalyseDeCircuit/oxideterm/releases/download/v${version}/OxideTerm_${version}_linux_x64.deb";
-    hash = "sha256-cyv3b2q8V4Q6+NqZ8sU/CEYrysAJUbkFKAVbd7ee6h8=";
+    hash = "sha256-cHGA7KZTSM4kU6qx425Qe7kO2J1/Vz5bsMi5ifaDYzc=";
   };
 
   oxideTermPackage = pkgs.stdenv.mkDerivation {
