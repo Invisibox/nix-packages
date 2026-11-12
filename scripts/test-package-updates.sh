@@ -7,12 +7,14 @@ trap 'rm -rf -- "$test_root"' EXIT
 export PACKAGE_UPDATE_TEST_NIX PACKAGE_UPDATE_TEST_ROOT="$test_root"
 PACKAGE_UPDATE_TEST_NIX=$(command -v nix)
 fixture="$test_root/repo with spaces"
-mkdir -p "$fixture/scripts" "$fixture/packages/pilinara" "$fixture/packages/bottles" "$test_root/bin"
-cp "$repo_root/scripts/update-pilinara.sh" "$repo_root/scripts/update-bottles.sh" "$fixture/scripts/"
+mkdir -p "$fixture/scripts" "$fixture/packages/pilinara" "$fixture/packages/bottles" "$fixture/packages/sable-next" "$test_root/bin"
+cp "$repo_root/scripts/update-pilinara.sh" "$repo_root/scripts/update-bottles.sh" "$repo_root/scripts/update-sable-next.sh" "$fixture/scripts/"
 cp "$repo_root/packages/pilinara/package.nix" "$fixture/packages/pilinara/"
 cp "$repo_root/packages/bottles/package.nix" "$fixture/packages/bottles/"
+cp "$repo_root/packages/sable-next/package.nix" "$fixture/packages/sable-next/"
 cp "$fixture/packages/pilinara/package.nix" "$test_root/pilinara.original"
 cp "$fixture/packages/bottles/package.nix" "$test_root/bottles.original"
+cp "$fixture/packages/sable-next/package.nix" "$test_root/sable-next.original"
 
 # Mock upstream responses and downloads; keep the real parsers and hash conversion.
 cat > "$test_root/bin/curl" <<'MOCK'
@@ -21,6 +23,29 @@ set -euo pipefail
 url=${!#}
 digest="sha256:$(printf '%064d' 0)"
 case "$url" in
+  https://git.sable.moe/api/v1/repos/SableClient/sable-next/releases/latest)
+    [[ ${PACKAGE_UPDATE_TEST_MODE-} != sable_network_failure ]] || exit 22
+    jq -n --arg mode "${PACKAGE_UPDATE_TEST_MODE-}" '
+      {
+        tag_name: (if $mode == "sable_bad_tag" then "v2.4.0-rc.1" else "v2.4.0" end),
+        draft: false, prerelease: ($mode == "sable_prerelease"),
+        assets: (if $mode == "sable_missing_asset" then [] else [{
+          name: "sable-2.4.0-amd64.deb",
+          browser_download_url: (if $mode == "sable_bad_url" then "https://example.org/sable.deb"
+            else "https://git.sable.moe/SableClient/sable-next/releases/download/v2.4.0/sable-2.4.0-amd64.deb" end)
+        }] end)
+      }
+    '
+    ;;
+  https://git.sable.moe/SableClient/sable-next/releases/download/v2.4.0/SHA256SUMS)
+    case ${PACKAGE_UPDATE_TEST_MODE-} in
+      sable_checksum_failure) exit 22 ;;
+      sable_missing_checksum) printf '%s  sable-2.4.0-arm64.deb\n' "${digest#sha256:}" ;;
+      sable_bad_checksum) printf 'invalid  sable-2.4.0-amd64.deb\n' ;;
+      sable_duplicate_checksum) printf '%s  sable-2.4.0-amd64.deb\n' "${digest#sha256:}" "${digest#sha256:}" ;;
+      *) printf '%s  sable-2.4.0-amd64.deb\n' "${digest#sha256:}" ;;
+    esac
+    ;;
   *Starfallan/PiliNara/releases/latest)
     [[ ${PACKAGE_UPDATE_TEST_MODE-} != network_failure ]] || exit 22
     jq -n --arg digest "$digest" --arg mode "${PACKAGE_UPDATE_TEST_MODE-}" '
@@ -75,6 +100,22 @@ chmod +x "$test_root/bin/"*
 export PATH="$test_root/bin:$PATH"
 pilinara="$fixture/packages/pilinara/package.nix"
 bottles="$fixture/packages/bottles/package.nix"
+sable_next="$fixture/packages/sable-next/package.nix"
+
+bash "$fixture/scripts/update-sable-next.sh" > "$test_root/update.log"
+grep -q 'version = "2.4.0";' "$sable_next"
+grep -q 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' "$sable_next"
+[[ ! -e "$test_root/downloads" ]]
+bash "$fixture/scripts/update-sable-next.sh" > "$test_root/update.log"
+grep -q 'already up to date' "$test_root/update.log"
+for mode in sable_network_failure sable_prerelease sable_bad_tag sable_missing_asset sable_bad_url sable_checksum_failure sable_missing_checksum sable_bad_checksum sable_duplicate_checksum; do
+  cp "$test_root/sable-next.original" "$sable_next"
+  if PACKAGE_UPDATE_TEST_MODE="$mode" bash "$fixture/scripts/update-sable-next.sh" > "$test_root/update.log" 2>&1; then
+    echo "FAIL: Sable Next $mode was accepted" >&2
+    exit 1
+  fi
+  cmp "$test_root/sable-next.original" "$sable_next"
+done
 
 bash "$fixture/scripts/update-pilinara.sh" > "$test_root/update.log"
 grep -q 'version = "2.7.0";' "$pilinara"
@@ -110,4 +151,4 @@ if PACKAGE_UPDATE_TEST_MODE=bottles_failure bash "$fixture/scripts/update-bottle
 fi
 cmp "$test_root/bottles.original" "$bottles"
 
-echo 'Package updater checks passed (release filenames, hashes, all Bottles components, no-op updates, atomic failures).'
+echo 'Package updater checks passed (GitHub/Forgejo releases, hashes, all Bottles components, no-op updates, atomic failures).'
