@@ -1,0 +1,12 @@
+--- a/sable-app/dist/main.cjs
++++ b/sable-app/dist/main.cjs
+@@ -26784,6 +26784,9 @@ var GRANTED = /* @__PURE__ */ new Set([
+   "clipboard-sanitized-write",
+   "display-capture",
+   "fullscreen",
++  "local-network",
++  "loopback-network",
++  "local-network-access",
+   "notifications",
+   "persistent-storage",
+   "screen-wake-lock",

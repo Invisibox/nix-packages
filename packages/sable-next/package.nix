@@ -27,6 +27,7 @@ in
 
     nativeBuildInputs = with pkgs; [
       autoPatchelfHook
+      asar
       desktop-file-utils
       dpkg
       wrapGAppsHook3
@@ -65,10 +66,23 @@ in
     dontWrapGApps = true;
     doInstallCheck = true;
 
+    patches = [./local-network-permissions.patch];
+
     unpackPhase = ''
       runHook preUnpack
       dpkg-deb --fsys-tarfile "$src" | tar -x --no-same-owner --no-same-permissions
+      asar extract opt/Sable/resources/app.asar sable-app
       runHook postUnpack
+    '';
+
+    postPatch = ''
+      # Electron's Rust core does not use the browser/worker network permission.
+      networkChunk=$(grep -l 'local-network-access' opt/Sable/resources/dist/_app/immutable/chunks/*.js)
+      substituteInPlace "$networkChunk" \
+        --replace-fail 'function r(){return!e()}' \
+                       'function r(){return!e()&&globalThis.sableElectron===void 0}'
+      asar pack sable-app opt/Sable/resources/app.asar --unpack '*.node'
+      rm -r sable-app
     '';
 
     installPhase = ''
@@ -102,6 +116,9 @@ in
     installCheckPhase = ''
       runHook preInstallCheck
       desktop-file-validate "$out/share/applications/moe.sable.client.desktop"
+      asar extract-file "$out/lib/sable/resources/app.asar" dist/main.cjs
+      networkChunk=$(grep -l 'local-network-access' "$out"/lib/sable/resources/dist/_app/immutable/chunks/*.js)
+      ${lib.getExe pkgs.nodejs} ${../../tests/sable-network.cjs} main.cjs "$networkChunk"
       # Bundled Electron disables RunAsNode; these modules use stable Node-API.
       ${lib.getExe pkgs.nodejs} -e '
         const path = require("node:path");
