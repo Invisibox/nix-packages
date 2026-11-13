@@ -73,7 +73,7 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 也导出 `overlays.default`，供需要使用自己的 nixpkgs 或覆盖依赖的配置使用。overlay 导出同样的十四个名字，其中 `bottles` 为包含组件的定制版本；消费端需允许微信、QQ 和官方百度网盘客户端的 unfree 许可，使用不同依赖时需要重新构建。
 官方百度网盘客户端仍依赖 GTK2，flake 将其弃用标记降为警告；使用 overlay 安装时需设置 `nixpkgs.config.problems.handlers."gtk+".broken = "warn"`。Paseo 使用官方 deb，不再携带 AppImage 中的 GTK2 兼容库。
 
-`sable-next` 从 [Sable Next 官方仓库](https://git.sable.moe/SableClient/sable-next) 的稳定发布下载 amd64 deb，保留上游 Electron 和 Rust 原生模块，无需编译前端或 Rust。启动命令为 `sable`，桌面入口及协议保持官方的 `moe.sable.client` 标识，数据目录沿用官方稳定版；与 nixpkgs 的 Sable Legacy 网页包不同。Nix 负责版本更新，包内不启用 AppImage 自更新。CI 会验证桌面入口和 Node-API 原生模块加载。
+`sable-next` 从 [Sable Next 官方仓库](https://git.sable.moe/SableClient/sable-next) 的稳定发布下载 amd64 deb，保留上游 Electron 和 Rust 原生模块，无需编译前端或 Rust。启动命令为 `sable`，桌面入口及协议保持官方的 `moe.sable.client` 标识，数据目录沿用官方稳定版；与 nixpkgs 的 Sable Legacy 网页包不同。Nix 负责版本更新，包内不启用 AppImage 自更新。打包时修正 Electron 原生网络的识别并补齐应用页面的本地网络权限，避免连接失败时误报浏览器阻止访问；嵌入的外部网页不继承此权限。CI 会验证平台识别、权限处理、桌面入口和 Node-API 原生模块加载。
 
 运行 `baidupcs-rust` 后，在 `http://127.0.0.1:18888` 打开 Web 界面；配置、登录数据和默认下载目录保存在 `$XDG_DATA_HOME/baidupcs-rust`（默认 `~/.local/share/baidupcs-rust`）。它不使用 jail.nix 沙箱，与 `baidunetdisk-jailed` 可同时安装和使用。
 
@@ -107,7 +107,7 @@ nix flake check --print-build-logs
 ```
 
 七个应用通过 `passthru.updateScript` 导出更新器，可在仓库内执行 `nix run '.#<包名>.updateScript'`；运行环境由 Nix 提供，工作目录自动切到 Git 仓库根目录。`update-all.sh` 自动发现这些更新器，逐个执行并汇总失败。原有 `scripts/update-*.sh` 仍可直接调用，GitHub API 请求支持 `GITHUB_TOKEN`。
-Paseo 和 OxideTerm 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新源码哈希，无需额外安装工具。
+Paseo 和 OxideTerm 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新源码哈希，无需额外安装工具。共用的 `lib/nix-update.nix` 将源码快照操作改为 `nix flake archive`，兼容 Nix 2.35 的惰性源码树。
 Sable Next 通过官方 Forgejo API 跟踪稳定发布，使用对应 `SHA256SUMS` 中 amd64 deb 的 SHA-256；版本、下载地址或校验文件无效时保留原包定义。执行 `nix run '.#sable-next.updateScript'` 可单独更新。
 Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
 WPS、Bottles 主程序、Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新，百度网盘暂时手动维护版本和哈希。
