@@ -86,24 +86,6 @@
     program = "qq";
     package = application;
   };
-  fhsWrapped = pkgs.callPackage ../lib/jailed-desktop/package.nix {
-    inherit jail;
-    pname = "jail-policy-fhs-probe";
-    program = "baidunetdisk";
-    fhs = true;
-    package = pkgs.buildFHSEnv {
-      pname = "fhs-sandbox-probe";
-      version = "1";
-      executableName = "baidunetdisk";
-      targetPkgs = p: [p.xdg-utils];
-      runScript = "${probe}/bin/sandbox-probe";
-      extraInstallCommands = ''
-        mkdir -p "$out/share/applications"
-        cp ${desktop}/share/applications/sandbox-probe.desktop "$out/share/applications/"
-      '';
-      meta.description = "FHS sandbox permission probe";
-    };
-  };
 in
   pkgs.writeShellApplication {
     name = "test-jailed-desktop-policy";
@@ -151,12 +133,10 @@ in
       busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop \
         org.freedesktop.portal.FileChooser OpenFile 'ssa{sv}' "" "" 0
       export QT_IM_MODULE=fcitx GTK_IM_MODULE=fcitx XMODIFIERS=@im=fcitx
-      for launcher in ${wrapped}/bin/jail-policy-probe ${fhsWrapped}/bin/jail-policy-fhs-probe; do
-        env -u TERM HOME="$test_root/home" LANG=C.UTF-8 "$launcher" settings
-      done
+      env -u TERM HOME="$test_root/home" LANG=C.UTF-8 ${wrapped}/bin/jail-policy-probe settings
       env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE \
         HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe tray
-      for launcher in ${wrapped}/bin/jail-policy-probe ${qqWrapped}/bin/jail-policy-qq-probe ${fhsWrapped}/bin/jail-policy-fhs-probe; do
+      for launcher in ${wrapped}/bin/jail-policy-probe ${qqWrapped}/bin/jail-policy-qq-probe; do
         env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE -u XMODIFIERS \
           HOME="$test_root/home" LANG=C.UTF-8 "$launcher" ime unset unset unset
         env -u TERM -u QT_IM_MODULE -u GTK_IM_MODULE XMODIFIERS=@im=fcitx \
@@ -176,7 +156,6 @@ in
         HOME="$test_root/home" LANG=C.UTF-8 ${wechatWrapped}/bin/jail-policy-wechat-probe \
         ime unset unset unset unset unset unset
       test -f "$test_root/home/Documents/jail/jail-policy-probe/persistent"
-      test -f "$test_root/home/Documents/jail/jail-policy-fhs-probe/persistent"
       test ! -e "$test_root/home/.local/share/jail.nix/home"
       test ! -e "$test_root/home/persistent"
       test ! -e "$test_root/home/Documents/forbidden"

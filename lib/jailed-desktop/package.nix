@@ -5,14 +5,8 @@
   package,
   pname,
   program,
-  fhs ? false,
 }: let
   browserOpener = pkgs.callPackage ./xdg-open.nix {};
-  # Inner FHS environments supply their own /usr/bin/xdg-open.
-  application =
-    if fhs
-    then package.overrideAttrs (_: {extraBwrapArgs = ["--ro-bind ${browserOpener}/bin/xdg-open ${pkgs.xdg-utils}/bin/xdg-open"];})
-    else package;
   permissions = with jail.combinators; [
     network
     (add-runtime ''install -d -m 700 "$HOME/Documents/jail/${pname}"'')
@@ -58,7 +52,7 @@
     (set-env "XDG_CACHE_HOME" (noescape ''"$HOME/.cache"''))
     (set-env "XDG_DATA_HOME" (noescape ''"$HOME/.local/share"''))
     (set-env "XDG_STATE_HOME" (noescape ''"$HOME/.local/state"''))
-    (set-env "XDG_DATA_DIRS" "${application}/share:${pkgs.hicolor-icon-theme}/share")
+    (set-env "XDG_DATA_DIRS" "${package}/share:${pkgs.hicolor-icon-theme}/share")
     (set-env "NIXOS_OZONE_WL" "1")
     # WeChat's launcher selects Wayland and text-input-v3 when Qt is unconfigured.
     (compose (lib.optionals (program != "wechat") (
@@ -83,7 +77,7 @@
       broadcast = ["org.freedesktop.portal.Desktop=org.freedesktop.portal.Settings.SettingChanged@/org/freedesktop/portal/desktop"];
     })
   ];
-  launcher = jail pname (lib.getExe' application program) permissions;
+  launcher = jail pname (lib.getExe' package program) permissions;
 in
   pkgs.runCommand "${pname}-${package.version}" {
     inherit pname;
@@ -99,10 +93,10 @@ in
     mkdir -p "$out/bin" "$out/share/applications"
     ln -s ${launcher}/bin/${pname} "$out/bin/${pname}"
     ln -s ${pname} "$out/bin/${program}"
-    if [ -d ${application}/share/icons ]; then
-      ln -s ${application}/share/icons "$out/share/icons"
+    if [ -d ${package}/share/icons ]; then
+      ln -s ${package}/share/icons "$out/share/icons"
     fi
-    for desktop in ${application}/share/applications/*.desktop; do
+    for desktop in ${package}/share/applications/*.desktop; do
       target="$out/share/applications/$(basename "$desktop")"
       cp "$desktop" "$target"
       chmod u+w "$target"

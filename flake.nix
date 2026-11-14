@@ -18,8 +18,6 @@
     pkgs = import nixpkgs {
       inherit system;
       config.allowUnfree = true;
-      # Baidu Netdisk still depends on GTK2.
-      config.problems.handlers."gtk+".broken = "warn";
       overlays = [self.overlays.default];
     };
     packageNames = builtins.attrNames (self.overlays.default pkgs pkgs);
