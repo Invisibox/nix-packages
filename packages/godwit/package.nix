@@ -3,7 +3,7 @@
   pkgs,
 }: let
   pname = "godwit";
-  version = "1.39.2";
+  version = "1.39.3";
 
   runtimeLibs = with pkgs; [
     at-spi2-core
@@ -31,7 +31,7 @@ in
 
     src = pkgs.fetchurl {
       url = "https://dl.godwit.email/godwit_${version}_amd64.deb";
-      hash = "sha256-VzT/ZHlXiD25ePxm/H7aP9uFk0Z/nEE+/CnOUsgClgA=";
+      hash = "sha256-WcZO2tyMV79Brz0H7aj7XCN9Qg6gk346C73ZqEUXmrw=";
     };
 
     nativeBuildInputs = with pkgs; [
