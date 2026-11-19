@@ -214,5 +214,5 @@ jobs:
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'chore: update package versions'
+          git commit -m '⬆️ chore: update package versions'
           git push origin "HEAD:$UPDATE_BRANCH"
