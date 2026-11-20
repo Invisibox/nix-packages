@@ -3,14 +3,14 @@
   pkgs,
 }: let
   pname = "pilinara";
-  version = "2.6.2";
+  version = "2.2.0";
 in
   pkgs.stdenvNoCC.mkDerivation {
     inherit pname version;
 
     # Follow the AUR binary package layout; release tags and asset versions differ.
     src = pkgs.fetchurl {
-      url = "https://github.com/Starfallan/PiliNara/releases/download/2.6.2/PiliNara_linux_2.2.0%2B6232_amd64.tar.gz";
+      url = "https://github.com/Starfallan/PiliNara/releases/download/2.2.0/PiliNara_linux_2.2.0%2B6232_amd64.tar.gz";
       hash = "sha256-ArZLsDjMQ6zcLcTD05ZiAd6NfIfqnsnxaoBmGqbmAVQ=";
     };
 
