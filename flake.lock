@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793847371,
-        "narHash": "sha256-iMFyl4uYdkmxSXdksvxO4MM7Vf5UMbxUjByWn7kI2JY=",
+        "lastModified": 1795249547,
+        "narHash": "sha256-bc2Nc6AFiJdgYIi6WrAl6W97DBiErq5bycgjkdJ2Nkc=",
         "owner": "brsvh",
         "repo": "chinese-fonts-overlay",
-        "rev": "a14d554299d1c8a5f4329a215d4d6217d99bf307",
+        "rev": "fe6a8d462475686561c7dd236f2a33b9639031e3",
         "type": "github"
       },
       "original": {
