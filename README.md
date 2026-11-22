@@ -9,6 +9,8 @@
 | `oxideterm` | `2.2.6` | 官方 deb 重新打包，CLI / GUI、WebKit 运行环境 |
 | `godwit` | `1.36.0` | 官方 amd64 deb，GTK3 / WebKitGTK、SQLite 原生库和桌面入口 |
 | `shotori` | `0.19.1` | 官方 Linux x86_64 发布包，修正动态链接，安装桌面入口和图标 |
+| `doona-web` | `0.1.0-rc.6` | pnpm 源码构建的静态 Web UI，由 Honk 的原生 API 提供 |
+| `honk-core` | `0.1.0-beta.6` | Rust 源码构建，内置 eBPF，提供原生 API、Clash API 和 `honk-tool` |
 | `neiro` | `0.2.0` / `2c48e7e` | Rust 源码构建，PipeWire / WirePlumber / ffmpeg 包装 |
 | `gamescope-patched` | 跟随 nixpkgs | `-fno-fast-math` 和 Gamescope 退出修复补丁 |
 | `nautilus-with-extensions` | 跟随 nixpkgs | GStreamer good/bad，以及 nautilus-python、open-any-terminal、code-nautilus、Flickernaut、GVfs、Sushi |
@@ -36,6 +38,7 @@ nix build '.#wechat-jailed' '.#qq-jailed'
 nix build '.#baidupcs-rust'
 nix build '.#godwit'
 nix build '.#shotori'
+nix build '.#doona-web' '.#honk-core'
 nix build '.#wps-office' '.#bottles' '.#pilinara'
 nix fmt -- --check .
 ./scripts/test-update-neiro.sh
@@ -80,6 +83,8 @@ Paseo 使用官方 deb，不再携带 AppImage 中的 GTK2 兼容库。
 
 在支持 `wlr-screencopy` 的 Wayland 会话（如 niri 或 Hyprland）中，运行 `nix run '.#shotori'` 开始截图，或运行 `nix run '.#shotori' -- tray` 启动托盘。保存对话框使用会话提供的 `xdg-desktop-portal`。OCR 模型首次使用时下载，识别在本地运行。
 
+Honk 的透明代理需要 Linux 6.12+ 和 root 权限。包内附带 `honk-core.service`，可通过 `systemd.packages` 引入，由系统配置提供 `/etc/honk/config.dae`、运行目录和资源路径。将配置中的 `experimental.native_api.ui` 设为 `doona-web` 的 Nix store 路径，即可由 Honk 提供该 Web UI。
+
 本地修改包定义后，在 `nix-config` 中执行 `nix flake update nix-packages`，刷新本地 input 的锁定快照。
 
 ## 微信、QQ 沙箱
@@ -111,6 +116,7 @@ nix flake check --print-build-logs
 
 自带更新器的软件包通过 `passthru.updateScript` 导出更新器，可在仓库内执行 `nix run '.#<包名>.updateScript'`。运行环境由 Nix 提供，工作目录自动切到 Git 仓库根目录。`update-all.sh` 自动发现这些更新器，逐个执行并汇总失败。原有 `scripts/update-*.sh` 仍可直接调用，GitHub API 请求支持 `GITHUB_TOKEN`。
 Paseo、OxideTerm、Godwit 和 Shotori 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新下载哈希，无需额外安装工具。Godwit 的 deb 来自官方 `dl.godwit.email` 下载站。共用的 `lib/nix-update.nix` 将源码快照操作改为 `nix flake archive`，兼容 Nix 2.35 的惰性源码树。
+Doona 和 Honk 跟踪 GitHub 上的版本化发布，包含 RC 和 beta。更新同时刷新源码和依赖哈希，包括 Doona 的 pnpm 依赖以及 Honk 主程序与 eBPF 子包各自的 Cargo 依赖。
 Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
 WPS、Bottles 主程序、Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新。
 Bottles 的更新器另外跟踪 WineBridge 最新发布，以及 Bottles 组件索引中的稳定版运行库、DXVK、VKD3D、NVAPI、LatencyFleX、Caffe 和 Soda；全部成功后才写回包定义。所有组件和带自定义显示名的 Proton GE 均放入 `bottles` 的输出闭包，CI 构建和上传会一并处理。消费端可通过 `bottles.winebridge`、`bottles.runtimeComponent`、`bottles.caffeRunner` 等 passthru 获取组件，用户数据目录和 Proton 链接由系统配置管理。
@@ -128,7 +134,7 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 
 沙箱检查工具仍按 derivation 变化运行权限测试：push 对比推送前的提交，PR 对比与目标分支的共同祖先，定时更新对比更新前的 HEAD，手动不更新时对比上一个提交。缺少基线或基线无法求值时运行权限测试。测试验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离；使用模拟设备、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。
 
-每天 UTC 03:17（北京时间 11:17）更新 flake inputs，并运行发现的应用更新器，包括 Shotori 和 Bottles 组件。手动运行可勾选 `update`。求值阶段将更新后的源码打包，构建和提交阶段使用同一份快照。所有检查和构建通过后，由独立 job 提交版本更新。仅此 job 拥有仓库写权限。公开仓库适用 GitHub Actions 免费额度。
+每天 UTC 03:17（北京时间 11:17）更新 flake inputs，并运行发现的应用更新器，包括 Doona、Honk、Shotori 和 Bottles 组件。手动运行可勾选 `update`。求值阶段将更新后的源码打包，构建和提交阶段使用同一份快照。所有检查和构建通过后，由独立 job 提交版本更新。仅此 job 拥有仓库写权限。公开仓库适用 GitHub Actions 免费额度。
 
 发布后，在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 设置：
 
