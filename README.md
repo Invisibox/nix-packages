@@ -121,6 +121,7 @@ Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认
 WPS、Bottles 主程序、Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新。
 Bottles 的更新器另外跟踪 WineBridge 最新发布，以及 Bottles 组件索引中的稳定版运行库、DXVK、VKD3D、NVAPI、LatencyFleX、Caffe 和 Soda；全部成功后才写回包定义。所有组件和带自定义显示名的 Proton GE 均放入 `bottles` 的输出闭包，CI 构建和上传会一并处理。消费端可通过 `bottles.winebridge`、`bottles.runtimeComponent`、`bottles.caffeRunner` 等 passthru 获取组件，用户数据目录和 Proton 链接由系统配置管理。
 Pilinara 跟踪 GitHub 最新稳定版，按实际发布资产查找 Linux amd64 tar.gz，分别记录发布标签和下载 URL，适配标签 `2.6.2` 与文件名 `2.2.0+6232` 不一致的情况。优先使用 GitHub SHA-256，缺失时下载计算；下载或解析失败时保留原包定义。打包时移除 Linux 不使用的 Android JNI 库 `libdartjni.so`，避免引入 headless Java 运行库。该包使用官方二进制，不包含 AUR 源码版单独添加的 Dart 补丁。
+`rime-wanxiang` 将万象的小鹤双拼辅助码方案及简体中文 LTS 语法模型放在 `share/rime-data`。上游的 `default.yaml` 以 `wanxiang_suggested_default.yaml` 提供，便于 Rime 用户通过 `default.custom.yaml` 引入；个人补丁和部署由消费端管理。更新器跟踪稳定版方案，并独立检查 `LTS` 发布下同名模型的哈希。
 WPS 的字体与输入法可通过 `wps-office.override { windowsFontsPackage = ...; qtImModule = "fcitx"; }` 调整；默认字体来自锁定的 chinese-fonts-overlay。
 Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届时需调整补丁后再更新。
 
@@ -134,7 +135,7 @@ Gamescope 的补丁可能在后续 nixpkgs 中失效或已被上游合并，届�
 
 沙箱检查工具仍按 derivation 变化运行权限测试：push 对比推送前的提交，PR 对比与目标分支的共同祖先，定时更新对比更新前的 HEAD，手动不更新时对比上一个提交。缺少基线或基线无法求值时运行权限测试。测试验证 Documents 只读、其他用户目录不可见、私有数据持久化、网页打开、桌面通知、摄像头设备挂载、音频 socket 连接、主题读取与切换通知、托盘注册及回调，以及 D-Bus 文件选择器隔离；使用模拟设备、临时 headless Wayland 和 D-Bus，Ubuntu runner 为 bubblewrap 开放用户命名空间。
 
-每天 UTC 03:17（北京时间 11:17）更新 flake inputs，并运行发现的应用更新器，包括 Doona、Honk、Shotori 和 Bottles 组件。手动运行可勾选 `update`。求值阶段将更新后的源码打包，构建和提交阶段使用同一份快照。所有检查和构建通过后，由独立 job 提交版本更新。仅此 job 拥有仓库写权限。公开仓库适用 GitHub Actions 免费额度。
+每天 UTC 03:17（北京时间 11:17）更新 flake inputs，并运行发现的应用更新器，包括 Rime 万象、Doona、Honk、Shotori 和 Bottles 组件。手动运行可勾选 `update`。求值阶段将更新后的源码打包，构建和提交阶段使用同一份快照。所有检查和构建通过后，由独立 job 提交版本更新。仅此 job 拥有仓库写权限。公开仓库适用 GitHub Actions 免费额度。
 
 发布后，在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 设置：
 

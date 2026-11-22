@@ -13,6 +13,9 @@ cp "$repo_root/packages/pilinara/package.nix" "$fixture/packages/pilinara/"
 cp "$repo_root/packages/bottles/package.nix" "$fixture/packages/bottles/"
 cp "$fixture/packages/pilinara/package.nix" "$test_root/pilinara.original"
 cp "$fixture/packages/bottles/package.nix" "$test_root/bottles.original"
+mkdir -p "$fixture/packages/rime-wanxiang"
+cp "$repo_root/scripts/update-rime-wanxiang.sh" "$fixture/scripts/"
+cp "$repo_root/packages/rime-wanxiang/package.nix" "$fixture/packages/rime-wanxiang/"
 
 # Mock upstream responses and downloads; keep the real parsers and hash conversion.
 cat > "$test_root/bin/curl" <<'MOCK'
@@ -52,6 +55,22 @@ case "$url" in
     file_name="$component.tar.xz"
     [[ "$component" != caffe-* && "$component" != soda-* ]] || file_name="$component-x86_64.tar.xz"
     printf 'file_name: %s\nurl: https://github.com/test/components/releases/download/v99/%s\n' "$file_name" "$file_name"
+    ;;
+  *amzxyz/rime-wanxiang/releases/latest)
+    jq -n --arg digest "$digest" '{tag_name: "v99.0", draft: false, prerelease: false, assets: [{
+      browser_download_url: "https://github.com/amzxyz/rime-wanxiang/releases/download/v99.0/rime-wanxiang-flypy-fuzhu.zip",
+      digest: $digest
+    }]}'
+    ;;
+  *amzxyz/rime-wanxiang-data/releases/tags/LTS)
+    [[ ${PACKAGE_UPDATE_TEST_MODE-} != missing_gram ]] || { printf '{"assets": []}\n'; exit 0; }
+    if [[ ${PACKAGE_UPDATE_TEST_MODE-} == new_gram ]]; then
+      digest="sha256:$(printf '%064d' 1)"
+    fi
+    jq -n --arg digest "$digest" '{tag_name: "LTS", draft: false, prerelease: false, assets: [{
+      browser_download_url: "https://github.com/amzxyz/rime-wanxiang-data/releases/download/LTS/wanxiang-lts-zh-hans.gram",
+      digest: $digest
+    }]}'
     ;;
   */releases/tags/*)
     jq -n --arg digest "$digest" '{assets: [
@@ -110,4 +129,20 @@ if PACKAGE_UPDATE_TEST_MODE=bottles_failure bash "$fixture/scripts/update-bottle
 fi
 cmp "$test_root/bottles.original" "$bottles"
 
-echo 'Package updater checks passed (GitHub releases, hashes, all Bottles components, no-op updates, atomic failures).'
+wanxiang="$fixture/packages/rime-wanxiang/package.nix"
+cp "$wanxiang" "$test_root/wanxiang.original"
+if PACKAGE_UPDATE_TEST_MODE=missing_gram bash "$fixture/scripts/update-rime-wanxiang.sh" > "$test_root/update.log" 2>&1; then
+  echo 'FAIL: Wanxiang accepted a missing LTS model' >&2
+  exit 1
+fi
+cmp "$test_root/wanxiang.original" "$wanxiang"
+bash "$fixture/scripts/update-rime-wanxiang.sh" > "$test_root/update.log"
+grep -q 'version = "99.0";' "$wanxiang"
+grep -q 'schemaHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";' "$wanxiang"
+grep -q 'gramHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";' "$wanxiang"
+cp "$wanxiang" "$test_root/wanxiang.updated"
+PACKAGE_UPDATE_TEST_MODE=new_gram bash "$fixture/scripts/update-rime-wanxiang.sh" > "$test_root/update.log"
+grep -q 'gramHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE=";' "$wanxiang"
+diff -u <(grep -v '^  gramHash' "$test_root/wanxiang.updated") <(grep -v '^  gramHash' "$wanxiang")
+
+echo 'Package updater checks passed (GitHub releases, hashes, Bottles components, Wanxiang LTS, no-op updates, atomic failures).'
