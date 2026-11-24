@@ -3,9 +3,9 @@
   pkgs,
 }: let
   pname = "rime-wanxiang";
-  version = "18.2.0";
+  version = "18.2.1";
   schemaAsset = "rime-wanxiang-flypy-fuzhu.zip";
-  schemaHash = "sha256-ACdenBHx+EPdc+P+KICraCkYUM+TvmdyS/K8fz/ZnhY=";
+  schemaHash = "sha256-xQlH6/mcdIQ+EXWkbTvcSNcZrSsfXfUftgzElMm+EP4=";
   gramAsset = "wanxiang-lts-zh-hans.gram";
   gramHash = "sha256-6d3VAbfVNrxeoTRvj5AK5JpxmgW+NJ4KF8sn5xcUPKU=";
   gram = pkgs.fetchurl {
