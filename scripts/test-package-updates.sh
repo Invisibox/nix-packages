@@ -16,6 +16,8 @@ cp "$fixture/packages/bottles/package.nix" "$test_root/bottles.original"
 mkdir -p "$fixture/packages/rime-wanxiang"
 cp "$repo_root/scripts/update-rime-wanxiang.sh" "$fixture/scripts/"
 cp "$repo_root/packages/rime-wanxiang/package.nix" "$fixture/packages/rime-wanxiang/"
+cp "$repo_root/scripts/update-sable-next.sh" "$fixture/scripts/"
+cp "$repo_root/flake.nix" "$repo_root/flake.lock" "$fixture/"
 
 # Mock upstream responses and downloads; keep the real parsers and hash conversion.
 cat > "$test_root/bin/curl" <<'MOCK'
@@ -24,6 +26,13 @@ set -euo pipefail
 url=${!#}
 digest="sha256:$(printf '%064d' 0)"
 case "$url" in
+  https://git.sable.moe/api/v1/repos/SableClient/sable-next/releases/latest)
+    mode=${PACKAGE_UPDATE_TEST_MODE-}
+    jq -n --arg mode "$mode" '{
+      tag_name: (if $mode == "invalid_tag" then "latest" else "v99.0.0" end),
+      draft: ($mode == "draft"), prerelease: ($mode == "prerelease")
+    }'
+    ;;
   *Starfallan/PiliNara/releases/latest)
     [[ ${PACKAGE_UPDATE_TEST_MODE-} != network_failure ]] || exit 22
     jq -n --arg digest "$digest" --arg mode "${PACKAGE_UPDATE_TEST_MODE-}" '
@@ -86,6 +95,12 @@ set -euo pipefail
 if [[ "$1 $2" == 'store prefetch-file' ]]; then
   printf 'prefetch\n' >> "$PACKAGE_UPDATE_TEST_ROOT/downloads"
   printf '{"hash":"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}\n'
+elif [[ "$*" == 'flake update sable-next --flake path:'* ]]; then
+  staged=${5#path:}
+  grep -q 'refs/tags/v99\.0\.0&shallow=1' "$staged/flake.nix"
+  jq '.nodes."sable-next".locked.ref = "refs/tags/v99.0.0"' "$staged/flake.lock" > "$staged/lock.new"
+  mv "$staged/lock.new" "$staged/flake.lock"
+  [[ ${PACKAGE_UPDATE_TEST_MODE-} != lock_failure ]]
 else
   exec "$PACKAGE_UPDATE_TEST_NIX" "$@"
 fi
@@ -145,4 +160,18 @@ PACKAGE_UPDATE_TEST_MODE=new_gram bash "$fixture/scripts/update-rime-wanxiang.sh
 grep -q 'gramHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE=";' "$wanxiang"
 diff -u <(grep -v '^  gramHash' "$test_root/wanxiang.updated") <(grep -v '^  gramHash' "$wanxiang")
 
-echo 'Package updater checks passed (GitHub releases, hashes, Bottles components, Wanxiang LTS, no-op updates, atomic failures).'
+for mode in draft prerelease invalid_tag lock_failure; do
+  if PACKAGE_UPDATE_TEST_MODE="$mode" bash "$fixture/scripts/update-sable-next.sh" > "$test_root/update.log" 2>&1; then
+    echo "FAIL: Sable Next accepted $mode" >&2
+    exit 1
+  fi
+  cmp "$repo_root/flake.nix" "$fixture/flake.nix"
+  cmp "$repo_root/flake.lock" "$fixture/flake.lock"
+done
+bash "$fixture/scripts/update-sable-next.sh" > "$test_root/update.log"
+grep -q 'refs/tags/v99\.0\.0&shallow=1' "$fixture/flake.nix"
+jq -e '.nodes."sable-next".locked.ref == "refs/tags/v99.0.0"' "$fixture/flake.lock" > /dev/null
+PACKAGE_UPDATE_TEST_MODE=lock_failure bash "$fixture/scripts/update-sable-next.sh" > "$test_root/update.log"
+grep -q 'already up to date' "$test_root/update.log"
+
+echo 'Package updater checks passed (GitHub and Forgejo releases, hashes, no-op updates, atomic failures).'
