@@ -7,12 +7,18 @@
     url = "github:brsvh/chinese-fonts-overlay";
     inputs.nixpkgs.follows = "nixpkgs";
   };
+  inputs.sable-next = {
+    # The moving `latest` tag can lag behind stable releases.
+    url = "git+https://git.sable.moe/SableClient/sable-next?ref=refs/tags/v26.11.4&shallow=1";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
 
   outputs = {
     self,
     nixpkgs,
     jail-nix,
     chinese-fonts-overlay,
+    sable-next,
   }: let
     system = "x86_64-linux";
     pkgs = import nixpkgs {
@@ -22,7 +28,7 @@
     };
     packageNames = builtins.attrNames (self.overlays.default pkgs pkgs);
   in {
-    overlays.default = import ./overlay.nix {inherit jail-nix chinese-fonts-overlay;};
+    overlays.default = import ./overlay.nix {inherit jail-nix chinese-fonts-overlay sable-next;};
     packages.${system} = nixpkgs.lib.genAttrs packageNames (name: pkgs.${name});
     checks.${system} =
       self.packages.${system}

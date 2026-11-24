@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | `brave-origin-beta` | `1.99.48` | 官方 deb 重新打包，ELF 修正、启动包装、桌面入口 |
 | `paseo-desktop` | `0.13.1` | 官方 deb 重新打包、动态链接修正、XDG 协议处理 |
+| `sable-next` | `26.11.4` | 复用上游 `sable-desktop` 源码构建，沿用上游桌面入口与 Matrix 链接处理 |
 | `oxideterm` | `2.2.6` | 官方 deb 重新打包，CLI / GUI、WebKit 运行环境 |
 | `godwit` | `1.36.0` | 官方 amd64 deb，GTK3 / WebKitGTK、SQLite 原生库和桌面入口 |
 | `shotori` | `0.19.1` | 官方 Linux x86_64 发布包，修正动态链接，安装桌面入口和图标 |
@@ -36,6 +37,7 @@ nix build '.#gamescope-patched'
 nix build '.#nautilus-with-extensions'
 nix build '.#wechat-jailed' '.#qq-jailed'
 nix build '.#baidupcs-rust'
+nix build '.#sable-next'
 nix build '.#godwit'
 nix build '.#shotori'
 nix build '.#doona-web' '.#honk-core'
@@ -77,6 +79,8 @@ inputs.nix-packages.url = "path:/home/zh/Documents/nix-packages";
 也导出 `overlays.default`，供需要使用自己的 nixpkgs 或覆盖依赖的配置使用。overlay 导出相同的包名，其中 `bottles` 为包含组件的定制版本；消费端需允许微信和 QQ 的 unfree 许可，使用不同依赖时需要重新构建。
 Paseo 使用官方 deb，不再携带 AppImage 中的 GTK2 兼容库。
 
+`sable-next` 使用 [Sable 官方桌面 flake](https://docs.sable.moe/installation/#nix)，可用 `nix run '.#sable-next'` 启动，安装后的命令为 `sable`。
+
 运行 `baidupcs-rust` 后，在 `http://127.0.0.1:18888` 打开 Web 界面；配置、登录数据和默认下载目录保存在 `$XDG_DATA_HOME/baidupcs-rust`（默认 `~/.local/share/baidupcs-rust`）。它不使用 jail.nix 沙箱。
 
 `godwit` 使用官方发布的 amd64 deb，保留随包附带的 SQLite 原生库和桌面资源，补齐 GTK3 / WebKitGTK 运行环境；可通过 `nix run '.#godwit'` 启动，也可运行 `godwit --headless` 或 `godwit mcp`。Nix 管理版本更新，上游在只读安装目录中自动禁用自更新。Secret Service 和桌面门户由系统配置提供。
@@ -105,7 +109,7 @@ Honk 的透明代理需要 Linux 6.12+ 和 root 权限。包内附带 `honk-core
 ## 更新版本
 
 ```sh
-# 更新全部 flake inputs（nixpkgs、jail-nix、chinese-fonts-overlay）：
+# 更新全部 flake inputs：
 nix flake update
 # 更新所有导出 updateScript 的应用和组件：
 ./scripts/update-all.sh
@@ -116,6 +120,7 @@ nix flake check --print-build-logs
 
 自带更新器的软件包通过 `passthru.updateScript` 导出更新器，可在仓库内执行 `nix run '.#<包名>.updateScript'`。运行环境由 Nix 提供，工作目录自动切到 Git 仓库根目录。`update-all.sh` 自动发现这些更新器，逐个执行并汇总失败。原有 `scripts/update-*.sh` 仍可直接调用，GitHub API 请求支持 `GITHUB_TOKEN`。
 Paseo、OxideTerm、Godwit 和 Shotori 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新下载哈希，无需额外安装工具。Godwit 的 deb 来自官方 `dl.godwit.email` 下载站。共用的 `lib/nix-update.nix` 将源码快照操作改为 `nix flake archive`，兼容 Nix 2.35 的惰性源码树。
+Sable Next 固定到上游的稳定版标签。更新时先修改 `flake.nix` 中的 `refs/tags/v…`，再执行 `nix flake update sable-next`。
 Doona 和 Honk 跟踪 GitHub 上的版本化发布，包含 RC 和 beta。更新同时刷新源码和依赖哈希，包括 Doona 的 pnpm 依赖以及 Honk 主程序与 eBPF 子包各自的 Cargo 依赖。
 Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
 WPS、Bottles 主程序、Gamescope、Nautilus、微信和 QQ 随 nixpkgs 更新。

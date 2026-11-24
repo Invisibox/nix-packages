@@ -1,6 +1,7 @@
 {
   jail-nix,
   chinese-fonts-overlay,
+  sable-next,
 }: final: prev: let
   jail = jail-nix.lib.init final;
 in
@@ -11,5 +12,6 @@ in
       inherit (prev) bottles gamescope nautilus;
       gvfs = prev.gnome.gvfs;
       windows-fonts = chinese-fonts-overlay.packages.${final.stdenv.hostPlatform.system}.windows-fonts;
+      sable-desktop = sable-next.packages.${final.stdenv.hostPlatform.system}.sable-desktop;
     };
   }
