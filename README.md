@@ -10,6 +10,7 @@
 | `oxideterm` | `2.2.6` | 官方 deb 重新打包，CLI / GUI、WebKit 运行环境 |
 | `godwit` | `1.36.0` | 官方 amd64 deb，GTK3 / WebKitGTK、SQLite 原生库和桌面入口 |
 | `shotori` | `0.19.1` | 官方 Linux x86_64 发布包，修正动态链接，安装桌面入口和图标 |
+| `fluxdown` | `0.6.8` | 官方 x86_64 deb 重新打包，保留桌面入口、后台服务与浏览器桥接程序 |
 | `doona-web` | `0.1.0-rc.6` | pnpm 源码构建的静态 Web UI，由 Honk 的原生 API 提供 |
 | `honk-core` | `0.1.0-beta.6` | Rust 源码构建，内置 eBPF，提供原生 API、Clash API 和 `honk-tool` |
 | `neiro` | `0.2.0` / `2c48e7e` | Rust 源码构建，PipeWire / WirePlumber / ffmpeg 包装 |
@@ -40,6 +41,7 @@ nix build '.#baidupcs-rust'
 nix build '.#sable-next'
 nix build '.#godwit'
 nix build '.#shotori'
+nix build '.#fluxdown'
 nix build '.#doona-web' '.#honk-core'
 nix build '.#wps-office' '.#bottles' '.#pilinara'
 nix fmt -- --check .
@@ -119,7 +121,7 @@ nix flake check --print-build-logs
 ```
 
 自带更新器的软件包通过 `passthru.updateScript` 导出更新器，可在仓库内执行 `nix run '.#<包名>.updateScript'`。运行环境由 Nix 提供，工作目录自动切到 Git 仓库根目录。`update-all.sh` 自动发现这些更新器，逐个执行并汇总失败。原有 `scripts/update-*.sh` 仍可直接调用，GitHub API 请求支持 `GITHUB_TOKEN`。
-Paseo、OxideTerm、Godwit 和 Shotori 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新下载哈希，无需额外安装工具。Godwit 的 deb 来自官方 `dl.godwit.email` 下载站。共用的 `lib/nix-update.nix` 将源码快照操作改为 `nix flake archive`，兼容 Nix 2.35 的惰性源码树。
+Paseo、OxideTerm、Godwit、Shotori 和 FluxDown 使用仓库锁定的 nixpkgs 提供的 `nix-update`，通过 GitHub Release API 跟踪最新稳定版并更新下载哈希，无需额外安装工具。Godwit 的 deb 来自官方 `dl.godwit.email` 下载站。共用的 `lib/nix-update.nix` 将源码快照操作改为 `nix flake archive`，兼容 Nix 2.35 的惰性源码树。
 Sable Next 通过上游 Forgejo 发布 API 跟踪最新稳定版。定时更新会同步修改 `flake.nix` 的版本标签和 `flake.lock`，通过 CI 检查后一起提交。可用 `nix run '.#sable-next.updateScript'` 单独更新。
 Doona 和 Honk 跟踪 GitHub 上的版本化发布，包含 RC 和 beta。更新同时刷新源码和依赖哈希，包括 Doona 的 pnpm 依赖以及 Honk 主程序与 eBPF 子包各自的 Cargo 依赖。
 Brave Origin 保留按指定 beta deb 筛选发布的脚本；Neiro 跟踪默认分支提交，并在源码、Cargo 哈希和构建测试通过后替换包定义。
