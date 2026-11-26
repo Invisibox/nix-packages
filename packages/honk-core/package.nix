@@ -34,13 +34,13 @@
 in
   rustPlatform.buildRustPackage (finalAttrs: {
     pname = "honk-core";
-    version = "0.1.0-beta.6";
+    version = "0.1.0-beta.7";
 
     src = fetchFromGitHub {
       owner = "daeuniverse";
       repo = "honk";
       tag = "v${finalAttrs.version}";
-      hash = "sha256-jWfRf9LCK8mX44NHwm4ZQFp8bFGJZydI0qHkK2P/gm4=";
+      hash = "sha256-SDrsnFTFgwAVh1s7NpBQ0cLngQBdb0mZg2eNpMTf0oA=";
     };
 
     # The eBPF crate has its own Cargo.lock and builds outside the workspace.
@@ -90,7 +90,7 @@ in
       '';
     });
 
-    cargoHash = "sha256-TCZdseN/IpLE0E43CS3f0a5Na4ffyuh+7kp1M+MPu2k=";
+    cargoHash = "sha256-DzVEg+CUkbfq0i5oidq5VNc1InPC6Gf/Vqee2TJ2Um8=";
 
     __structuredAttrs = true;
     strictDeps = true;
