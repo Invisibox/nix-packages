@@ -3,7 +3,7 @@
   pkgs,
 }: let
   pname = "fluxdown";
-  version = "0.6.8";
+  version = "0.6.9";
   repo = "https://github.com/zerx-lab/FluxDown";
 in
   pkgs.stdenvNoCC.mkDerivation {
@@ -11,7 +11,7 @@ in
 
     src = pkgs.fetchurl {
       url = "${repo}/releases/download/v${version}/FluxDown-${version}-linux-x64.deb";
-      hash = "sha256-sZR6NWrZAodlXQA7+i9PYRTAN8ShcBIOKUhDUH0+ibE=";
+      hash = "sha256-GUY0fHJYWIqyHbFeiAV4hjYdfjhm07gFZyYYPxx7l8Y=";
     };
 
     nativeBuildInputs = with pkgs; [autoPatchelfHook dpkg makeWrapper wrapGAppsHook3];
